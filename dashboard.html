@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PropAI Builder Dashboard</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+
+  <style>
+
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: linear-gradient(to right, #eef2ff, #f8fafc);
+      color: #111827;
+    }
+
+    .header {
+      background: #1e3a8a;
+      color: white;
+      padding: 15px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      padding: 24px;
+      border-radius: 14px;
+      margin-top: 20px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4,1fr);
+      gap: 15px;
+    }
+
+    .stat-box {
+      background: linear-gradient(to bottom right, #ffffff, #f3f4f6);
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .lead {
+      border-bottom: 1px solid #ddd;
+      padding: 10px;
+    }
+
+    .lead-matches {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .lead-match {
+      border-left: 3px solid #2563eb;
+      background: #f8fafc;
+      padding: 8px 10px;
+      line-height: 1.45;
+    }
+
+    .lead-match-score {
+      color: #047857;
+      font-weight: bold;
+    }
+
+    .lead-intelligence {
+      margin-top: 10px;
+      border-left: 3px solid #047857;
+      background: #eef2ff;
+      padding: 8px 10px;
+      line-height: 1.45;
+    }
+
+    .lead-call {
+      margin-top: 10px;
+      border-left: 3px solid #7c3aed;
+      background: #f5f3ff;
+      padding: 8px 10px;
+      line-height: 1.45;
+    }
+
+    .call-fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 12px;
+      margin: 8px 0;
+    }
+
+    .call-field {
+      background: white;
+      border: 1px solid #ddd6fe;
+      border-radius: 6px;
+      padding: 6px 8px;
+    }
+
+    .call-transcript {
+      margin-top: 8px;
+      max-height: 220px;
+      overflow: auto;
+      background: white;
+      border: 1px solid #ddd6fe;
+      border-radius: 6px;
+      padding: 8px;
+    }
+
+    .validation-errors {
+      margin-top: 8px;
+      color: #991b1b;
+    }
+
+    @media (max-width: 700px) {
+      .stats {
+        grid-template-columns: repeat(2,1fr);
+      }
+
+      .call-fields {
+        grid-template-columns: 1fr;
+      }
+    }
+
+  </style>
+</head>
+
+<body>
+
+<div class="header" id="header">
+  <div id="branding">🏠 PropAI Builder Dashboard</div>
+  <div id="builderName"></div>
+</div>
+
+<div class="container">
+
+  <div class="stats">
+
+    <div class="stat-box">
+      Total<br>
+      <span id="total">0</span>
+    </div>
+
+    <div class="stat-box">
+      🔥 HOT<br>
+      <span id="hot">0</span>
+    </div>
+
+    <div class="stat-box">
+      🟡 WARM<br>
+      <span id="warm">0</span>
+    </div>
+
+    <div class="stat-box">
+      ❄️ COLD<br>
+      <span id="cold">0</span>
+    </div>
+
+  </div>
+
+  <div class="card">
+    <canvas id="analyticsChart"></canvas>
+  </div>
+
+  <div class="card">
+    <h3>Lead History</h3>
+    <div id="history"></div>
+  </div>
+
+</div>
+
+<script>
+
+const pathParts = window.location.pathname.split("/").filter(Boolean);
+const routeBuilder = pathParts[0] === "dashboard" ? pathParts[1] : "";
+const params = new URLSearchParams(window.location.search);
+const builder = routeBuilder || params.get("builder") || "builder1";
+
+let chart;
+let socket;
+
+initializeDashboard();
+
+async function initializeDashboard() {
+
+  await loadBuilderProfile();
+  await loadHistory();
+  await loadAnalytics();
+  connectDashboardSocket();
+}
+
+async function loadBuilderProfile() {
+
+  const res = await fetch(`/builders/${builder}`);
+
+  if (!res.ok) {
+    document.getElementById("history").innerHTML = "Builder dashboard not found";
+    return;
+  }
+
+  const data = await res.json();
+
+  document.getElementById("branding").innerHTML =
+    `${escapeHtml(data.logo)} ${escapeHtml(data.company)}`;
+
+  document.getElementById("builderName").innerHTML =
+    escapeHtml(data.username);
+
+  document.getElementById("header").style.background =
+    data.themeColor;
+}
+
+function connectDashboardSocket() {
+
+  if (socket) {
+    socket.disconnect();
+  }
+
+  socket = io();
+
+  socket.on("connect", () => {
+
+    socket.emit("builder:join", { builder }, (response) => {
+
+      if (!response || !response.success) {
+        console.warn("Dashboard socket join failed");
+      }
+    });
+  });
+
+  socket.on("dashboard:update", (payload) => {
+
+    if (payload.analytics) {
+      renderAnalytics(payload.analytics);
+    }
+
+    if (payload.lead) {
+      prependLead(payload.lead, payload.matches || []);
+    }
+  });
+}
+
+async function loadHistory() {
+
+  const res = await fetch(`/builders/${builder}/leads`);
+
+  const leads = await res.json();
+
+  renderLeads(leads);
+}
+
+function escapeHtml(value) {
+
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function renderLeadMatches(lead, liveMatches) {
+
+  const matches = liveMatches.length
+    ? liveMatches
+    : (lead.matchedProperties || [])
+      .filter((match) => match.property)
+      .map((match) => ({
+        title: match.property.title,
+        location: match.property.location,
+        budgetLabel: match.property.budgetLabel,
+        bhk: match.property.bhk,
+        possession: match.property.possession,
+        matchScore: match.matchScore,
+        reasons: match.reasons || []
+      }));
+
+  if (!matches.length) {
+    return "";
+  }
+
+  let html = `<div class="lead-matches">`;
+
+  matches.forEach((match) => {
+
+    html += `
+      <div class="lead-match">
+        <b>${escapeHtml(match.title)}</b>
+        <span class="lead-match-score">${escapeHtml(match.matchScore)}%</span><br>
+        ${escapeHtml(match.bhk)}BHK · ${escapeHtml(match.location)} · ${escapeHtml(match.budgetLabel)} · ${escapeHtml(match.possession)}<br>
+        ${match.reasons.map(escapeHtml).join(" · ")}
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+
+  return html;
+}
+
+function renderLeadIntelligence(lead) {
+
+  const intelligence = lead.intelligence;
+
+  if (!intelligence) {
+    return "";
+  }
+
+  return `
+    <div class="lead-intelligence">
+      <b>AI Intelligence</b><br>
+      Intent: ${escapeHtml(intelligence.intent)}<br>
+      Urgency: ${escapeHtml(intelligence.urgency)}<br>
+      Budget: ${escapeHtml(intelligence.budgetStrength)}<br>
+      Action: ${escapeHtml(intelligence.recommendedAction)}<br>
+      Tags: ${(intelligence.tags || []).map(escapeHtml).join(", ")}
+    </div>
+  `;
+}
+
+function plainLeadStatus(status) {
+
+  if (String(status || "").includes("HOT")) {
+    return "HOT";
+  }
+
+  if (String(status || "").includes("WARM")) {
+    return "WARM";
+  }
+
+  return "COLD";
+}
+
+function findAnswerByQuestion(call, question) {
+
+  return (call.answers || []).find((answer) =>
+    answer && answer.question === question
+  );
+}
+
+function answerValue(call, question) {
+
+  const answer = findAnswerByQuestion(call, question);
+
+  if (!answer || answer.valid === false) {
+    return "Unknown";
+  }
+
+  return answer.normalizedAnswer || answer.answer || "Unknown";
+}
+
+function getCallFields(call) {
+
+  const fields = call.structuredFields || {};
+
+  return {
+    purpose: fields.purpose || answerValue(call, "Buying Purpose"),
+    configuration: fields.configuration || answerValue(call, "Configuration"),
+    budget: fields.budget || answerValue(call, "Approximate Budget"),
+    funding: fields.funding || answerValue(call, "Budget Readiness"),
+    siteVisit: fields.siteVisit || answerValue(call, "Site Visit")
+  };
+}
+
+function renderStructuredFields(lead, call) {
+
+  const fields = getCallFields(call);
+
+  return `
+    <div class="call-fields">
+      <div class="call-field"><b>Purpose</b><br>${escapeHtml(fields.purpose)}</div>
+      <div class="call-field"><b>Configuration</b><br>${escapeHtml(fields.configuration)}</div>
+      <div class="call-field"><b>Budget</b><br>${escapeHtml(fields.budget)}</div>
+      <div class="call-field"><b>Funding status</b><br>${escapeHtml(fields.funding)}</div>
+      <div class="call-field"><b>Site visit plan</b><br>${escapeHtml(fields.siteVisit)}</div>
+      <div class="call-field"><b>Lead status</b><br>${escapeHtml(plainLeadStatus(lead.status))}</div>
+    </div>
+  `;
+}
+
+function renderValidationErrors(call) {
+
+  const storedErrors = call.validationErrors && call.validationErrors.length
+    ? call.validationErrors
+    : [];
+  const answerErrors = (call.answers || [])
+      .filter((answer) => answer && answer.valid === false)
+      .map((answer) => `${answer.question}: ${answer.answer || "Unknown"}`);
+  const transcriptErrors = (call.transcript || [])
+      .filter((item) => item && item.question && item.valid === false)
+      .map((item) => `${item.question}: ${item.rawAnswer || item.text || "Unknown"}`);
+  const errors = [...new Set([
+    ...storedErrors,
+    ...answerErrors,
+    ...transcriptErrors
+  ])];
+
+  if (!errors.length) {
+    return "";
+  }
+
+  return `
+    <div class="validation-errors">
+      <b>Validation errors</b><br>
+      ${errors.map(escapeHtml).join("<br>")}
+    </div>
+  `;
+}
+
+function renderTranscript(call) {
+
+  const transcript = call.transcript || [];
+
+  if (!transcript.length) {
+    return "";
+  }
+
+  const lines = transcript.map((item) => {
+    const details = item.question
+      ? ` | Question: ${item.question} | Raw: ${item.rawAnswer || item.text || "Unknown"} | Normalized: ${item.normalizedAnswer || "Unknown"} | Valid: ${item.valid === true ? "yes" : "no"} | Correction attempts: ${item.retryCount || 0}`
+      : "";
+
+    return `${item.speaker || "unknown"}: ${item.text || ""}${details}`;
+  });
+
+  return `
+    <div class="call-transcript">
+      <b>Full transcript</b><br>
+      ${lines.map(escapeHtml).join("<br>")}
+    </div>
+  `;
+}
+
+function renderOutboundCall(lead) {
+
+  const call = lead.outboundCall;
+
+  if (!call || !call.status) {
+    return "";
+  }
+
+  const answers = (call.answers || [])
+    .filter((item) => item && item.question)
+    .map((item) => {
+      const capturedAnswer = item.rawAnswer || item.answer || "Unknown";
+      const normalizedAnswer = item.normalizedAnswer && item.normalizedAnswer !== capturedAnswer
+        ? ` (${escapeHtml(item.normalizedAnswer)})`
+        : "";
+      const validity = item.valid === false ? " - invalid" : "";
+      const retry = typeof item.retryCount === "number" ? ` - correction attempts: ${item.retryCount}` : "";
+
+      return `${escapeHtml(item.question)}<br><b>${escapeHtml(capturedAnswer)}${normalizedAnswer}</b>${escapeHtml(validity)}${escapeHtml(retry)}`;
+    })
+    .join("<br><br>");
+
+  return `
+    <div class="lead-call">
+      <b>Outbound AI Call</b><br>
+      Status: ${escapeHtml(call.status)}<br>
+      ${renderStructuredFields(lead, call)}
+      ${call.summary ? `Summary: ${escapeHtml(call.summary)}<br>` : ""}
+      ${answers ? `<br>${answers}` : ""}
+      ${renderValidationErrors(call)}
+      ${renderTranscript(call)}
+      ${call.error ? `Error: ${escapeHtml(call.error)}` : ""}
+    </div>
+  `;
+}
+
+function renderLead(lead, liveMatches = []) {
+
+  const leadId = lead._id || lead.id || "";
+
+  return `
+    <div class="lead" data-lead-id="${escapeHtml(leadId)}">
+
+      <b>${escapeHtml(lead.name)}</b><br>
+
+      📞 ${escapeHtml(lead.phone)}<br>
+
+      📍 ${escapeHtml(lead.location)}<br>
+
+      💰 ${escapeHtml(lead.budget)}<br>
+
+      🧠 ${escapeHtml(lead.status)} (${escapeHtml(lead.score)}/100)<br>
+
+      ⏰ ${escapeHtml(lead.timeline)}<br>
+
+      ${renderLeadIntelligence(lead)}
+
+      ${renderOutboundCall(lead)}
+
+      ${renderLeadMatches(lead, liveMatches)}
+    </div>
+  `;
+}
+
+function renderLeads(leads) {
+
+  let html = "";
+
+  leads.forEach((lead) => {
+
+    html += renderLead(lead);
+  });
+
+  document.getElementById("history").innerHTML = html;
+}
+
+function prependLead(lead, matches = []) {
+
+  const history = document.getElementById("history");
+  const leadId = lead._id || lead.id || "";
+  const existing = leadId
+    ? history.querySelector(`[data-lead-id="${CSS.escape(leadId)}"]`)
+    : null;
+
+  if (existing) {
+    existing.outerHTML = renderLead(lead, matches);
+    return;
+  }
+
+  history.insertAdjacentHTML("afterbegin", renderLead(lead, matches));
+}
+
+async function loadAnalytics() {
+
+  const res = await fetch(`/builders/${builder}/analytics`);
+
+  const data = await res.json();
+
+  renderAnalytics(data);
+}
+
+function renderAnalytics(data) {
+
+  document.getElementById("total").innerHTML = data.total;
+  document.getElementById("hot").innerHTML = data.hot;
+  document.getElementById("warm").innerHTML = data.warm;
+  document.getElementById("cold").innerHTML = data.cold;
+
+  const chartData = [data.hot, data.warm, data.cold];
+
+  if (chart) {
+    chart.data.datasets[0].data = chartData;
+    chart.update();
+    return;
+  }
+
+  const ctx = document.getElementById("analyticsChart");
+
+  chart = new Chart(ctx, {
+
+    type: "bar",
+
+    data: {
+      labels: ["HOT", "WARM", "COLD"],
+      datasets: [{
+        label: "Lead Analytics",
+        data: chartData
+      }]
+    }
+  });
+}
+
+</script>
+
+</body>
+</html>
