@@ -121,6 +121,47 @@
       color: #991b1b;
     }
 
+    .lead-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: end;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .lead-filter {
+      display: grid;
+      gap: 5px;
+      font-size: 13px;
+      color: #374151;
+    }
+
+    .lead-filter select {
+      min-width: 150px;
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: white;
+      color: #111827;
+    }
+
+    .export-button {
+      padding: 9px 14px;
+      border: 0;
+      border-radius: 6px;
+      background: #1e3a8a;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .empty-leads {
+      padding: 12px 0;
+      color: #6b7280;
+    }
+
     @media (max-width: 700px) {
       .stats {
         grid-template-columns: repeat(2,1fr);
@@ -128,6 +169,12 @@
 
       .call-fields {
         grid-template-columns: 1fr;
+      }
+
+      .lead-filter,
+      .lead-filter select,
+      .export-button {
+        width: 100%;
       }
     }
 
@@ -173,6 +220,41 @@
 
   <div class="card">
     <h3>Lead History</h3>
+    <div class="lead-toolbar">
+      <label class="lead-filter">
+        Lead status
+        <select id="leadStatusFilter">
+          <option value="all">All</option>
+          <option value="HOT">HOT</option>
+          <option value="WARM">WARM</option>
+          <option value="COLD">COLD</option>
+        </select>
+      </label>
+
+      <label class="lead-filter">
+        Call status
+        <select id="callStatusFilter">
+          <option value="all">All</option>
+          <option value="completed">completed</option>
+          <option value="failed">failed</option>
+        </select>
+      </label>
+
+      <label class="lead-filter">
+        Site visit
+        <select id="siteVisitFilter">
+          <option value="all">All</option>
+          <option value="today">today</option>
+          <option value="tomorrow">tomorrow</option>
+          <option value="this weekend">this weekend</option>
+          <option value="next week">next week</option>
+          <option value="later">later</option>
+          <option value="unknown">unknown</option>
+        </select>
+      </label>
+
+      <button class="export-button" id="exportCsvButton" type="button">Export CSV</button>
+    </div>
     <div id="history"></div>
   </div>
 
@@ -187,15 +269,26 @@ const builder = routeBuilder || params.get("builder") || "builder1";
 
 let chart;
 let socket;
+let allLeads = [];
 
 initializeDashboard();
 
 async function initializeDashboard() {
 
   await loadBuilderProfile();
+  bindLeadControls();
   await loadHistory();
   await loadAnalytics();
   connectDashboardSocket();
+}
+
+function bindLeadControls() {
+
+  ["leadStatusFilter", "callStatusFilter", "siteVisitFilter"].forEach((id) => {
+    document.getElementById(id).addEventListener("change", renderFilteredLeads);
+  });
+
+  document.getElementById("exportCsvButton").addEventListener("click", exportFilteredLeadsCsv);
 }
 
 async function loadBuilderProfile() {
@@ -255,7 +348,8 @@ async function loadHistory() {
 
   const leads = await res.json();
 
-  renderLeads(leads);
+  allLeads = Array.isArray(leads) ? leads : [];
+  renderFilteredLeads();
 }
 
 function escapeHtml(value) {
@@ -371,6 +465,90 @@ function getCallFields(call) {
   };
 }
 
+function getLeadCall(lead) {
+
+  return lead.outboundCall || {};
+}
+
+function getLeadCallStatus(lead) {
+
+  const call = getLeadCall(lead);
+
+  if (call.error || call.status === "failed") {
+    return "failed";
+  }
+
+  if (call.status === "completed") {
+    return "completed";
+  }
+
+  return call.status || "unknown";
+}
+
+function getLeadSiteVisit(lead) {
+
+  const siteVisit = getCallFields(getLeadCall(lead)).siteVisit;
+
+  return String(siteVisit || "Unknown").trim().toLowerCase();
+}
+
+function getNormalizedSiteVisitFilterValue(lead) {
+
+  const siteVisit = getLeadSiteVisit(lead);
+
+  if (!siteVisit || siteVisit === "unknown") {
+    return "unknown";
+  }
+
+  if (siteVisit.includes("today")) {
+    return "today";
+  }
+
+  if (siteVisit.includes("tomorrow")) {
+    return "tomorrow";
+  }
+
+  if (siteVisit.includes("weekend") || siteVisit.includes("saturday") || siteVisit.includes("sunday")) {
+    return "this weekend";
+  }
+
+  if (siteVisit.includes("next week")) {
+    return "next week";
+  }
+
+  if (siteVisit.includes("later")) {
+    return "later";
+  }
+
+  return siteVisit;
+}
+
+function leadMatchesFilters(lead) {
+
+  const leadStatus = document.getElementById("leadStatusFilter").value;
+  const callStatus = document.getElementById("callStatusFilter").value;
+  const siteVisit = document.getElementById("siteVisitFilter").value;
+
+  if (leadStatus !== "all" && plainLeadStatus(lead.status) !== leadStatus) {
+    return false;
+  }
+
+  if (callStatus !== "all" && getLeadCallStatus(lead) !== callStatus) {
+    return false;
+  }
+
+  if (siteVisit !== "all" && getNormalizedSiteVisitFilterValue(lead) !== siteVisit) {
+    return false;
+  }
+
+  return true;
+}
+
+function getFilteredLeads() {
+
+  return allLeads.filter(leadMatchesFilters);
+}
+
 function renderStructuredFields(lead, call) {
 
   const fields = getCallFields(call);
@@ -479,6 +657,7 @@ function renderOutboundCall(lead) {
 function renderLead(lead, liveMatches = []) {
 
   const leadId = lead._id || lead.id || "";
+  const matches = liveMatches.length ? liveMatches : (lead._liveMatches || []);
 
   return `
     <div class="lead" data-lead-id="${escapeHtml(leadId)}">
@@ -499,12 +678,18 @@ function renderLead(lead, liveMatches = []) {
 
       ${renderOutboundCall(lead)}
 
-      ${renderLeadMatches(lead, liveMatches)}
+      ${renderLeadMatches(lead, matches)}
     </div>
   `;
 }
 
 function renderLeads(leads) {
+
+  if (!leads.length) {
+    document.getElementById("history").innerHTML =
+      `<div class="empty-leads">No leads match selected filters.</div>`;
+    return;
+  }
 
   let html = "";
 
@@ -516,20 +701,108 @@ function renderLeads(leads) {
   document.getElementById("history").innerHTML = html;
 }
 
+function renderFilteredLeads() {
+
+  renderLeads(getFilteredLeads());
+}
+
 function prependLead(lead, matches = []) {
 
-  const history = document.getElementById("history");
   const leadId = lead._id || lead.id || "";
-  const existing = leadId
-    ? history.querySelector(`[data-lead-id="${CSS.escape(leadId)}"]`)
-    : null;
+  const nextLead = Object.assign({}, lead, {
+    _liveMatches: matches
+  });
+  const existingIndex = leadId
+    ? allLeads.findIndex((item) => (item._id || item.id || "") === leadId)
+    : -1;
 
-  if (existing) {
-    existing.outerHTML = renderLead(lead, matches);
-    return;
+  if (existingIndex >= 0) {
+    allLeads[existingIndex] = nextLead;
+  }
+  else {
+    allLeads.unshift(nextLead);
   }
 
-  history.insertAdjacentHTML("afterbegin", renderLead(lead, matches));
+  renderFilteredLeads();
+}
+
+function validationErrorsForCsv(call) {
+
+  const storedErrors = call.validationErrors && call.validationErrors.length
+    ? call.validationErrors
+    : [];
+  const answerErrors = (call.answers || [])
+    .filter((answer) => answer && answer.valid === false)
+    .map((answer) => `${answer.question}: ${answer.answer || "Unknown"}`);
+  const transcriptErrors = (call.transcript || [])
+    .filter((item) => item && item.question && item.valid === false)
+    .map((item) => `${item.question}: ${item.rawAnswer || item.text || "Unknown"}`);
+
+  return [...new Set([
+    ...storedErrors,
+    ...answerErrors,
+    ...transcriptErrors
+  ])].join("; ");
+}
+
+function csvValue(value) {
+
+  const text = String(value || "");
+
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function exportFilteredLeadsCsv() {
+
+  const headers = [
+    "Customer name",
+    "Phone number",
+    "Location",
+    "Purpose",
+    "Configuration",
+    "Budget",
+    "Funding status",
+    "Site visit plan",
+    "Lead status",
+    "Call status",
+    "Summary",
+    "Validation errors",
+    "Created date/time"
+  ];
+  const rows = getFilteredLeads().map((lead) => {
+    const call = getLeadCall(lead);
+    const fields = getCallFields(call);
+
+    return [
+      lead.name,
+      lead.phone,
+      lead.location,
+      fields.purpose,
+      fields.configuration,
+      fields.budget,
+      fields.funding,
+      fields.siteVisit,
+      plainLeadStatus(lead.status),
+      getLeadCallStatus(lead),
+      call.summary,
+      validationErrorsForCsv(call),
+      lead.createdAt ? new Date(lead.createdAt).toLocaleString() : ""
+    ];
+  });
+  const csv = [
+    headers.map(csvValue).join(","),
+    ...rows.map((row) => row.map(csvValue).join(","))
+  ].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = `${builder}-leads.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 async function loadAnalytics() {
