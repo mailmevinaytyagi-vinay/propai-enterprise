@@ -121,6 +121,110 @@
       color: #991b1b;
     }
 
+    .call-attempts {
+      margin-top: 8px;
+      background: white;
+      border: 1px solid #ddd6fe;
+      border-radius: 6px;
+      padding: 8px;
+    }
+
+    .lead-actions {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .retry-call-button {
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 6px;
+      background: #7c3aed;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .retry-call-button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .retry-limit-message {
+      color: #6b7280;
+      font-size: 13px;
+    }
+
+    .lead-status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .lead-status-pending {
+      background: #f97316;
+    }
+
+    .lead-status-hot {
+      background: #16a34a;
+    }
+
+    .lead-status-warm {
+      background: #2563eb;
+    }
+
+    .lead-status-cold {
+      background: #dc2626;
+    }
+
+    .whatsapp-followup-button {
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 6px;
+      background: #047857;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .whatsapp-followup-button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .whatsapp-status {
+      margin-top: 8px;
+      background: white;
+      border: 1px solid #ddd6fe;
+      border-radius: 6px;
+      padding: 8px;
+    }
+
+    .dashboard-message {
+      margin: 0 0 12px 0;
+      padding: 10px 12px;
+      border-radius: 6px;
+      display: none;
+      font-weight: bold;
+    }
+
+    .dashboard-message.error {
+      display: block;
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .dashboard-message.success {
+      display: block;
+      background: #dcfce7;
+      color: #166534;
+    }
+
     .lead-toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -173,7 +277,9 @@
 
       .lead-filter,
       .lead-filter select,
-      .export-button {
+      .export-button,
+      .retry-call-button,
+      .whatsapp-followup-button {
         width: 100%;
       }
     }
@@ -225,6 +331,7 @@
         Lead status
         <select id="leadStatusFilter">
           <option value="all">All</option>
+          <option value="PENDING">PENDING</option>
           <option value="HOT">HOT</option>
           <option value="WARM">WARM</option>
           <option value="COLD">COLD</option>
@@ -237,6 +344,11 @@
           <option value="all">All</option>
           <option value="completed">completed</option>
           <option value="failed">failed</option>
+          <option value="no-answer">no-answer</option>
+          <option value="unanswered">unanswered</option>
+          <option value="busy">busy</option>
+          <option value="cancelled">cancelled</option>
+          <option value="canceled">canceled</option>
         </select>
       </label>
 
@@ -255,6 +367,7 @@
 
       <button class="export-button" id="exportCsvButton" type="button">Export CSV</button>
     </div>
+    <div class="dashboard-message" id="dashboardMessage"></div>
     <div id="history"></div>
   </div>
 
@@ -270,6 +383,8 @@ const builder = routeBuilder || params.get("builder") || "builder1";
 let chart;
 let socket;
 let allLeads = [];
+const maxOutboundCallAttempts = 3;
+const retryableCallStatuses = ["failed", "no-answer", "busy", "unanswered", "cancelled", "canceled"];
 
 initializeDashboard();
 
@@ -289,6 +404,7 @@ function bindLeadControls() {
   });
 
   document.getElementById("exportCsvButton").addEventListener("click", exportFilteredLeadsCsv);
+  document.getElementById("history").addEventListener("click", handleLeadActionClick);
 }
 
 async function loadBuilderProfile() {
@@ -423,6 +539,10 @@ function renderLeadIntelligence(lead) {
 
 function plainLeadStatus(status) {
 
+  if (String(status || "").includes("PENDING")) {
+    return "PENDING";
+  }
+
   if (String(status || "").includes("HOT")) {
     return "HOT";
   }
@@ -431,7 +551,72 @@ function plainLeadStatus(status) {
     return "WARM";
   }
 
-  return "COLD";
+  if (String(status || "").includes("COLD")) {
+    return "COLD";
+  }
+
+  return "PENDING";
+}
+
+function displayPendingValue(value) {
+
+  const text = String(value || "").trim();
+
+  return text && !["unknown", "null", "undefined"].includes(text.toLowerCase())
+    ? text
+    : "Pending";
+}
+
+function renderLeadStatusBadge(status) {
+
+  const plainStatus = plainLeadStatus(status);
+
+  return `<span class="lead-status-badge lead-status-${plainStatus.toLowerCase()}">${escapeHtml(plainStatus)}</span>`;
+}
+
+function renderLeadScore(lead) {
+
+  const status = getDashboardLeadStatus(lead);
+
+  if (status === "PENDING") {
+    return "";
+  }
+
+  const score = Number(lead.score || 0);
+
+  return Number.isFinite(score) && score > 0
+    ? ` (${escapeHtml(score)}/100)`
+    : "";
+}
+
+function hasQualifiedDisplayValue(value) {
+
+  return displayPendingValue(value) !== "Pending";
+}
+
+function getDashboardLeadStatus(lead) {
+
+  const call = getLeadCall(lead);
+  const callStatus = String(call.status || "").toLowerCase();
+  const fields = getCallFields(call);
+  const values = [
+    fields.purpose,
+    fields.configuration,
+    fields.budget,
+    fields.funding,
+    fields.siteVisit
+  ];
+  const validCount = values.filter(hasQualifiedDisplayValue).length;
+
+  if (["no-answer", "busy", "unanswered", "failed", "cancelled", "canceled"].includes(callStatus) || validCount === 0) {
+    return "PENDING";
+  }
+
+  if (values.every(hasQualifiedDisplayValue)) {
+    return "HOT";
+  }
+
+  return "WARM";
 }
 
 function findAnswerByQuestion(call, question) {
@@ -446,10 +631,10 @@ function answerValue(call, question) {
   const answer = findAnswerByQuestion(call, question);
 
   if (!answer || answer.valid === false) {
-    return "Unknown";
+    return "Pending";
   }
 
-  return answer.normalizedAnswer || answer.answer || "Unknown";
+  return displayPendingValue(answer.normalizedAnswer || answer.answer);
 }
 
 function getCallFields(call) {
@@ -457,11 +642,11 @@ function getCallFields(call) {
   const fields = call.structuredFields || {};
 
   return {
-    purpose: fields.purpose || answerValue(call, "Buying Purpose"),
-    configuration: fields.configuration || answerValue(call, "Configuration"),
-    budget: fields.budget || answerValue(call, "Approximate Budget"),
-    funding: fields.funding || answerValue(call, "Budget Readiness"),
-    siteVisit: fields.siteVisit || answerValue(call, "Site Visit")
+    purpose: displayPendingValue(fields.purpose || answerValue(call, "Buying Purpose")),
+    configuration: displayPendingValue(fields.configuration || answerValue(call, "Configuration")),
+    budget: displayPendingValue(fields.budget || answerValue(call, "Approximate Budget")),
+    funding: displayPendingValue(fields.funding || answerValue(call, "Budget Readiness")),
+    siteVisit: displayPendingValue(fields.siteVisit || answerValue(call, "Site Visit"))
   };
 }
 
@@ -496,7 +681,7 @@ function getNormalizedSiteVisitFilterValue(lead) {
 
   const siteVisit = getLeadSiteVisit(lead);
 
-  if (!siteVisit || siteVisit === "unknown") {
+  if (!siteVisit || siteVisit === "unknown" || siteVisit === "pending") {
     return "unknown";
   }
 
@@ -529,7 +714,7 @@ function leadMatchesFilters(lead) {
   const callStatus = document.getElementById("callStatusFilter").value;
   const siteVisit = document.getElementById("siteVisitFilter").value;
 
-  if (leadStatus !== "all" && plainLeadStatus(lead.status) !== leadStatus) {
+  if (leadStatus !== "all" && getDashboardLeadStatus(lead) !== leadStatus) {
     return false;
   }
 
@@ -560,7 +745,7 @@ function renderStructuredFields(lead, call) {
       <div class="call-field"><b>Budget</b><br>${escapeHtml(fields.budget)}</div>
       <div class="call-field"><b>Funding status</b><br>${escapeHtml(fields.funding)}</div>
       <div class="call-field"><b>Site visit plan</b><br>${escapeHtml(fields.siteVisit)}</div>
-      <div class="call-field"><b>Lead status</b><br>${escapeHtml(plainLeadStatus(lead.status))}</div>
+      <div class="call-field"><b>Lead status</b><br>${escapeHtml(getDashboardLeadStatus(lead))}</div>
     </div>
   `;
 }
@@ -604,7 +789,7 @@ function renderTranscript(call) {
 
   const lines = transcript.map((item) => {
     const details = item.question
-      ? ` | Question: ${item.question} | Raw: ${item.rawAnswer || item.text || "Unknown"} | Normalized: ${item.normalizedAnswer || "Unknown"} | Valid: ${item.valid === true ? "yes" : "no"} | Correction attempts: ${item.retryCount || 0}`
+      ? ` | Question: ${item.question} | Raw: ${displayPendingValue(item.rawAnswer || item.text)} | Normalized: ${displayPendingValue(item.normalizedAnswer)} | Valid: ${item.valid === true ? "yes" : "no"} | Correction attempts: ${item.retryCount || 0}`
       : "";
 
     return `${item.speaker || "unknown"}: ${item.text || ""}${details}`;
@@ -614,6 +799,158 @@ function renderTranscript(call) {
     <div class="call-transcript">
       <b>Full transcript</b><br>
       ${lines.map(escapeHtml).join("<br>")}
+    </div>
+  `;
+}
+
+function getCallAttempts(call) {
+
+  const history = Array.isArray(call.attempt_history) ? call.attempt_history : [];
+  const attempts = history.length
+    ? history.map((item) => ({
+      retryAttemptNumber: item.attempt,
+      status: item.status,
+      retryReason: item.type,
+      retryTimestamp: item.timestamp
+    }))
+    : (Array.isArray(call.callAttempts) ? call.callAttempts : []);
+
+  if (attempts.length) {
+    return attempts;
+  }
+
+  if (!call.status && !call.callSid) {
+    return [];
+  }
+
+  return [{
+    retryAttemptNumber: 1,
+    status: call.status || "unknown",
+    callSid: call.callSid,
+    retryReason: "Initial outbound call",
+    retryTimestamp: call.startedAt
+  }];
+}
+
+function renderRetryMetadata(call) {
+
+  const retryCount = typeof call.retry_count === "number"
+    ? call.retry_count
+    : Math.max(0, getCallAttempts(call).length - 1);
+  const nextRetry = call.next_retry_time
+    ? new Date(call.next_retry_time).toLocaleString()
+    : "Pending";
+
+  return `
+    Retry count: ${escapeHtml(retryCount)}<br>
+    Next retry time: ${escapeHtml(nextRetry)}<br>
+  `;
+}
+
+function renderAttemptHistory(call) {
+
+  const attempts = getCallAttempts(call);
+
+  if (!attempts.length) {
+    return "";
+  }
+
+  const rows = attempts
+    .map((attempt, index) => {
+      const attemptNumber = attempt.retryAttemptNumber || index + 1;
+      const status = attempt.status || "unknown";
+      const reason = attempt.retryReason ? ` (${escapeHtml(attempt.retryReason)})` : "";
+
+      return `Attempt ${escapeHtml(attemptNumber)} &rarr; ${escapeHtml(status)}${reason}`;
+    })
+    .join("<br>");
+
+  return `<div class="call-attempts"><b>Attempt history</b><br>${rows}</div>`;
+}
+
+function renderRetryCallAction(lead, call) {
+
+  const status = call.status || "";
+  const attempts = getCallAttempts(call);
+
+  if (!retryableCallStatuses.includes(status)) {
+    return "";
+  }
+
+  if (attempts.length >= maxOutboundCallAttempts) {
+    return `
+      <div class="lead-actions">
+        <button class="retry-call-button" type="button" disabled>Retry Call</button>
+        <span class="retry-limit-message">Maximum retry limit reached</span>
+      </div>
+    `;
+  }
+
+  const leadId = lead._id || lead.id || "";
+
+  return `
+    <div class="lead-actions">
+      <button class="retry-call-button" type="button" data-action="retry-call" data-lead-id="${escapeHtml(leadId)}">
+        Retry Call
+      </button>
+    </div>
+  `;
+}
+
+function renderWhatsAppStatus(lead) {
+
+  const followup = lead.whatsapp_followup || {};
+  const sentTime = followup.timestamp
+    ? new Date(followup.timestamp).toLocaleString()
+    : "Pending";
+  const message = followup.message || getWhatsAppPreview(lead);
+
+  return `
+    <div class="whatsapp-status">
+      <b>WhatsApp Status</b><br>
+      Status: ${escapeHtml(followup.status || "Pending")}<br>
+      Message Preview: ${escapeHtml(message || "Pending")}<br>
+      Last Sent Time: ${escapeHtml(sentTime)}
+    </div>
+  `;
+}
+
+function getWhatsAppPreview(lead) {
+
+  const status = getDashboardLeadStatus(lead);
+  const call = getLeadCall(lead);
+  const fields = getCallFields(call);
+  const name = displayPendingValue(lead.name) === "Pending" ? "there" : lead.name;
+  const callStatus = getLeadCallStatus(lead);
+
+  if (status === "COLD") {
+    return "Skipped for COLD leads.";
+  }
+
+  if (callStatus === "busy" || callStatus === "no-answer" || callStatus === "unanswered") {
+    return `Hi ${name}, we tried calling regarding your property enquiry. Please reply with a convenient time.`;
+  }
+
+  if (status === "HOT") {
+    return `Hi ${name}, thank you for speaking with us. Based on your requirement for ${fields.configuration} in Navi Mumbai with budget ${fields.budget}, our team will share suitable options shortly.`;
+  }
+
+  return `Hi ${name}, thank you for your interest. We have noted your requirement and our team will contact you.`;
+}
+
+function renderWhatsAppAction(lead) {
+
+  const leadId = lead._id || lead.id || "";
+
+  if (!leadId) {
+    return "";
+  }
+
+  return `
+    <div class="lead-actions">
+      <button class="whatsapp-followup-button" type="button" data-action="whatsapp-followup" data-lead-id="${escapeHtml(leadId)}">
+        Send WhatsApp Follow-up
+      </button>
     </div>
   `;
 }
@@ -629,9 +966,10 @@ function renderOutboundCall(lead) {
   const answers = (call.answers || [])
     .filter((item) => item && item.question)
     .map((item) => {
-      const capturedAnswer = item.rawAnswer || item.answer || "Unknown";
-      const normalizedAnswer = item.normalizedAnswer && item.normalizedAnswer !== capturedAnswer
-        ? ` (${escapeHtml(item.normalizedAnswer)})`
+      const capturedAnswer = displayPendingValue(item.rawAnswer || item.answer);
+      const normalizedValue = displayPendingValue(item.normalizedAnswer);
+      const normalizedAnswer = normalizedValue !== "Pending" && normalizedValue !== capturedAnswer
+        ? ` (${escapeHtml(normalizedValue)})`
         : "";
       const validity = item.valid === false ? " - invalid" : "";
       const retry = typeof item.retryCount === "number" ? ` - correction attempts: ${item.retryCount}` : "";
@@ -643,13 +981,18 @@ function renderOutboundCall(lead) {
   return `
     <div class="lead-call">
       <b>Outbound AI Call</b><br>
-      Status: ${escapeHtml(call.status)}<br>
+      Latest status: ${escapeHtml(call.status)}<br>
+      ${renderRetryMetadata(call)}
+      ${renderAttemptHistory(call)}
       ${renderStructuredFields(lead, call)}
       ${call.summary ? `Summary: ${escapeHtml(call.summary)}<br>` : ""}
       ${answers ? `<br>${answers}` : ""}
       ${renderValidationErrors(call)}
       ${renderTranscript(call)}
       ${call.error ? `Error: ${escapeHtml(call.error)}` : ""}
+      ${renderWhatsAppStatus(lead)}
+      ${renderRetryCallAction(lead, call)}
+      ${renderWhatsAppAction(lead)}
     </div>
   `;
 }
@@ -670,7 +1013,7 @@ function renderLead(lead, liveMatches = []) {
 
       💰 ${escapeHtml(lead.budget)}<br>
 
-      🧠 ${escapeHtml(lead.status)} (${escapeHtml(lead.score)}/100)<br>
+      Lead status: ${renderLeadStatusBadge(getDashboardLeadStatus(lead))}${renderLeadScore(lead)}<br>
 
       ⏰ ${escapeHtml(lead.timeline)}<br>
 
@@ -724,6 +1067,105 @@ function prependLead(lead, matches = []) {
   }
 
   renderFilteredLeads();
+}
+
+function showDashboardMessage(message, type) {
+
+  const messageEl = document.getElementById("dashboardMessage");
+
+  messageEl.textContent = message || "";
+  messageEl.className = message
+    ? `dashboard-message ${type || "success"}`
+    : "dashboard-message";
+}
+
+async function handleLeadActionClick(event) {
+
+  const button = event.target.closest("[data-action]");
+
+  if (!button) {
+    return;
+  }
+
+  const leadId = button.getAttribute("data-lead-id");
+
+  if (!leadId) {
+    return;
+  }
+
+  if (button.getAttribute("data-action") === "whatsapp-followup") {
+    await sendManualWhatsAppFollowup(button, leadId);
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Retrying...";
+  showDashboardMessage("", "");
+
+  try {
+    const res = await fetch(`/builders/${builder}/leads/${leadId}/retry-call`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        retryReason: "Manual retry"
+      })
+    });
+    const data = await res.json();
+
+    if (data.lead) {
+      prependLead(data.lead, []);
+    }
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "Retry failed. Please check call configuration.");
+    }
+
+    showDashboardMessage("Retry call started.", "success");
+  }
+  catch (err) {
+    const message = err && err.message === "Maximum retry limit reached"
+      ? "Maximum retry limit reached"
+      : "Retry failed. Please check call configuration.";
+    showDashboardMessage(message, "error");
+    button.disabled = false;
+    button.textContent = "Retry Call";
+  }
+}
+
+async function sendManualWhatsAppFollowup(button, leadId) {
+
+  button.disabled = true;
+  button.textContent = "Sending...";
+  showDashboardMessage("", "");
+
+  try {
+    const res = await fetch(`/api/leads/${leadId}/whatsapp-followup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        reason: "manual-dashboard"
+      })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "WhatsApp follow-up failed");
+    }
+
+    await loadHistory();
+    showDashboardMessage(data.message || "WhatsApp follow-up sent", "success");
+  }
+  catch (err) {
+    showDashboardMessage("WhatsApp follow-up failed", "error");
+  }
+  finally {
+    button.disabled = false;
+    button.textContent = "Send WhatsApp Follow-up";
+  }
 }
 
 function validationErrorsForCsv(call) {
@@ -782,7 +1224,7 @@ function exportFilteredLeadsCsv() {
       fields.budget,
       fields.funding,
       fields.siteVisit,
-      plainLeadStatus(lead.status),
+      getDashboardLeadStatus(lead),
       getLeadCallStatus(lead),
       call.summary,
       validationErrorsForCsv(call),

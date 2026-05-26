@@ -224,10 +224,16 @@ async function sendLead() {
       body: JSON.stringify(payload)
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || data.success === false) {
+      throw new Error(data.message || data.error || `Request failed with status ${res.status}`);
+    }
 
     document.getElementById("result").innerHTML =
-      "✅ Lead Submitted Successfully";
+      data.warning
+        ? `✅ Lead Submitted Successfully<br><small>${escapeHtml(data.warning)}</small>`
+        : "✅ Lead Submitted Successfully";
 
     renderMatches(data.matches || []);
 
@@ -241,7 +247,7 @@ async function sendLead() {
   } catch (err) {
 
     document.getElementById("result").innerHTML =
-      "❌ Error submitting lead";
+      `❌ ${escapeHtml(err.message || "Error submitting lead")}`;
   }
 
   submitBtn.innerHTML = "Submit Lead";

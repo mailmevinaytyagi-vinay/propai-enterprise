@@ -22,12 +22,20 @@ const voiceWebhookBaseUrl =
   process.env.TWILIO_VOICE_WEBHOOK_BASE_URL || process.env.PUBLIC_BASE_URL;
 const twilioVoiceFrom =
   process.env.TWILIO_VOICE_FROM || process.env.TWILIO_PHONE_NUMBER;
+const twilioWhatsAppFrom =
+  process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+14155238886";
 
 const client = twilio(accountSid, authToken);
 
 const maxAnswerRetries = 2;
+const maxOutboundCallAttempts = 3;
+const retryableCallStatuses = ["failed", "no-answer", "busy", "unanswered", "cancelled", "canceled"];
 const invalidAnswerClarification =
   "Sorry, main samajh nahi paaya. Kripya option clear bataiye.";
+const hindiMaleTtsOptions = {
+  voice: "Google.hi-IN-Standard-B",
+  language: "hi-IN"
+};
 
 const qualificationQuestions = [
   {
@@ -219,14 +227,43 @@ const LeadSchema = new mongoose.Schema({
       answeredAt: Date
     }],
     structuredFields: {
-      purpose: String,
-      configuration: String,
-      budget: String,
-      funding: String,
-      siteVisit: String
+      type: Object,
+      default: {}
     },
     validationErrors: [String],
-    summary: String
+    summary: String,
+    currentAttemptNumber: Number,
+    retry_count: Number,
+    next_retry_time: Date,
+    callAttempts: [{
+      retryAttemptNumber: Number,
+      originalLeadId: mongoose.Schema.Types.ObjectId,
+      retryTimestamp: Date,
+      retryReason: String,
+      status: String,
+      callSid: String,
+      error: String,
+      startedAt: Date,
+      completedAt: Date
+    }],
+    attempt_history: [{
+      attempt: Number,
+      status: String,
+      type: String,
+      timestamp: {
+        type: Date,
+        default: Date.now
+      }
+    }]
+  },
+  whatsapp_followup: {
+    sent: Boolean,
+    status: String,
+    reason: String,
+    message: String,
+    timestamp: Date,
+    twilio_sid: String,
+    error: String
   },
   matchedProperties: [{
     property: {
@@ -241,6 +278,84 @@ const LeadSchema = new mongoose.Schema({
     default: Date.now
   }
 });
+
+function parseLegacyAttemptHistoryEntry(entry) {
+
+  if (typeof entry !== "string") {
+    return entry;
+  }
+
+  const value = entry.trim();
+
+  if (!value) {
+    return {
+      status: "unknown"
+    };
+  }
+
+  try {
+    const parsedValue = JSON.parse(value);
+
+    if (parsedValue && typeof parsedValue === "object" && !Array.isArray(parsedValue)) {
+      return parsedValue;
+    }
+
+    return {
+      status: String(parsedValue || value)
+    };
+  }
+  catch (err) {
+    return {
+      status: value
+    };
+  }
+}
+
+function normalizeAttemptHistoryEntry(entry, index) {
+
+  const normalizedEntry = parseLegacyAttemptHistoryEntry(entry) || {};
+  const timestamp = normalizedEntry.timestamp ||
+    normalizedEntry.retryTimestamp ||
+    normalizedEntry.startedAt ||
+    normalizedEntry.completedAt ||
+    new Date();
+
+  return {
+    attempt: normalizedEntry.attempt ||
+      normalizedEntry.retryAttemptNumber ||
+      index + 1,
+    status: normalizedEntry.status ||
+      (typeof entry === "string" ? entry : "unknown"),
+    type: normalizedEntry.type ||
+      normalizedEntry.retryReason ||
+      "Legacy attempt",
+    timestamp
+  };
+}
+
+function normalizeLeadAttemptHistory(lead) {
+  if (!lead.outboundCall) lead.outboundCall = {};
+
+  if (!Array.isArray(lead.outboundCall.attempt_history)) {
+    lead.outboundCall.attempt_history = [];
+  }
+
+  lead.outboundCall.attempt_history = lead.outboundCall.attempt_history.map((item, index) => {
+    if (typeof item === "string") {
+      return {
+        attempt: index + 1,
+        status: item,
+        type: "Legacy attempt",
+        timestamp: new Date()
+      };
+    }
+    return item;
+  });
+
+  if (!lead.outboundCall.structuredFields) {
+    lead.outboundCall.structuredFields = {};
+  }
+}
 
 const PropertySchema = new mongoose.Schema({
   builder: String,
@@ -695,17 +810,17 @@ async function getAnalyticsForBuilder(builder) {
 
   const hot = await Lead.countDocuments({
     builder,
-    status: "HOT 🔥"
+    status: { $in: ["HOT", "HOT 🔥"] }
   });
 
   const warm = await Lead.countDocuments({
     builder,
-    status: "WARM 🟡"
+    status: { $in: ["WARM", "WARM 🟡"] }
   });
 
   const cold = await Lead.countDocuments({
     builder,
-    status: "COLD ❄️"
+    status: { $in: ["COLD", "COLD ❄️"] }
   });
 
   return {
@@ -735,6 +850,29 @@ function buildVoiceWebhookUrl(pathname) {
   }
 
   return `${voiceWebhookBaseUrl.replace(/\/$/, "")}${pathname}`;
+}
+
+function formatIndianPhoneNumber(phone) {
+
+  let rawPhone = String(phone || "").replace(/\D/g, "");
+
+  if (!rawPhone) {
+    return "";
+  }
+
+  if (rawPhone.length === 11 && rawPhone.startsWith("0")) {
+    rawPhone = rawPhone.slice(1);
+  }
+
+  if (rawPhone.length === 10) {
+    return "+91" + rawPhone;
+  }
+
+  if (rawPhone.length === 12 && rawPhone.startsWith("91")) {
+    return "+" + rawPhone;
+  }
+
+  return rawPhone.startsWith("+") ? rawPhone : "+" + rawPhone;
 }
 
 function getLeadCompany(lead) {
@@ -1009,6 +1147,10 @@ function getStatusFromScore(score) {
 
 function getPlainLeadStatus(status) {
 
+  if ((status || "").includes("PENDING")) {
+    return "PENDING";
+  }
+
   if ((status || "").includes("HOT")) {
     return "HOT";
   }
@@ -1017,14 +1159,71 @@ function getPlainLeadStatus(status) {
     return "WARM";
   }
 
-  return "COLD";
+  if ((status || "").includes("COLD")) {
+    return "COLD";
+  }
+
+  return "PENDING";
+}
+
+function hasQualifiedValue(value) {
+
+  const text = String(value || "").trim();
+
+  return Boolean(text) && !["unknown", "null", "undefined", "pending"].includes(text.toLowerCase());
+}
+
+function isDisqualifiedValue(value) {
+
+  const text = String(value || "").trim().toLowerCase();
+
+  return text.includes("not interested") ||
+    text.includes("disqualified") ||
+    text.includes("invalid budget");
+}
+
+function calculateLeadStatus(lead) {
+
+  const call = lead.outboundCall || {};
+  const status = String(call.status || "").toLowerCase();
+  const fields = call.structuredFields || {};
+  const values = {
+    purpose: fields.purpose,
+    configuration: fields.configuration,
+    budget: fields.budget,
+    fundingStatus: fields.funding || fields.fundingStatus,
+    siteVisit: fields.siteVisit
+  };
+  const fieldValues = Object.values(values);
+
+  if (
+    fieldValues.some(isDisqualifiedValue) ||
+    ((call.validationErrors || []).some(isDisqualifiedValue))
+  ) {
+    return "COLD";
+  }
+
+  const validCount = fieldValues.filter(hasQualifiedValue).length;
+
+  if (
+    ["no-answer", "busy", "unanswered", "failed", "cancelled", "canceled"].includes(status) ||
+    validCount === 0
+  ) {
+    return "PENDING";
+  }
+
+  if (validCount === fieldValues.length) {
+    return "HOT";
+  }
+
+  return "WARM";
 }
 
 function displayStructuredValue(value) {
 
-  return value && value !== "Unknown"
+  return hasQualifiedValue(value)
     ? value
-    : "Unknown";
+    : "Pending";
 }
 
 function getCallStructuredFields(lead) {
@@ -1040,6 +1239,17 @@ function getCallStructuredFields(lead) {
   };
 }
 
+function filterQualifiedFields(fields) {
+
+  return Object.keys(fields || {}).reduce((result, key) => {
+    if (hasQualifiedValue(fields[key])) {
+      result[key] = fields[key];
+    }
+
+    return result;
+  }, {});
+}
+
 function getCallValidationErrors(lead) {
 
   const answers = (lead.outboundCall && lead.outboundCall.answers) || [];
@@ -1053,56 +1263,51 @@ function getCallValidationErrors(lead) {
 function updateStructuredQualification(lead) {
 
   lead.outboundCall = lead.outboundCall || {};
-  lead.outboundCall.structuredFields = getCallStructuredFields(lead);
+  const existingLeadData = filterQualifiedFields(lead.outboundCall.structuredFields || {});
+  const filteredNewValues = filterQualifiedFields(getCallStructuredFields(lead));
+
+  lead.outboundCall.structuredFields = {
+    ...existingLeadData,
+    ...filteredNewValues
+  };
   lead.outboundCall.validationErrors = getCallValidationErrors(lead);
 }
 
 function calculateCallLeadScore(lead) {
 
-  const fields = (lead.outboundCall && lead.outboundCall.structuredFields) ||
-    getCallStructuredFields(lead);
-  const hasBudget = fields.budget !== "Unknown";
-  const hasClearVisit = fields.siteVisit !== "Unknown";
-  const hotVisitPlans = ["today", "tomorrow", "this weekend", "next week"];
-  const hotFundingStatuses = ["loan approved", "self funding", "partly ready"];
-  const warmFundingStatuses = ["loan planning", "not ready"];
+  const qualifiedStatus = calculateLeadStatus(lead);
 
-  if (
-    hasBudget &&
-    hotVisitPlans.includes(fields.siteVisit) &&
-    hotFundingStatuses.includes(fields.funding)
-  ) {
+  if (qualifiedStatus === "PENDING") {
     return {
-      score: 90,
-      status: "HOT 🔥"
+      score: lead.score || 0,
+      status: "PENDING"
     };
   }
 
-  if (
-    hasBudget &&
-    fields.siteVisit === "later" &&
-    warmFundingStatuses.includes(fields.funding)
-  ) {
-    return {
-      score: 70,
-      status: "WARM 🟡"
-    };
-  }
-
-  if (
-    !hasBudget ||
-    !hasClearVisit ||
-    ((lead.outboundCall && lead.outboundCall.validationErrors) || []).length >= 2
-  ) {
+  if (qualifiedStatus === "COLD") {
     return {
       score: 40,
-      status: "COLD ❄️"
+      status: "COLD"
+    };
+  }
+
+  if (qualifiedStatus === "HOT") {
+    return {
+      score: 90,
+      status: "HOT"
+    };
+  }
+
+  if (qualifiedStatus === "WARM") {
+    return {
+      score: 70,
+      status: "WARM"
     };
   }
 
   return {
-    score: 65,
-    status: "WARM 🟡"
+    score: 0,
+    status: "PENDING"
   };
 }
 
@@ -1132,53 +1337,315 @@ function addQuestionGather(twiml, leadId, step, retryCount = 0, promptOverride =
     method: "POST"
   });
 
-  gather.say({
-    voice: "alice",
-    language: "en-IN"
-  }, promptOverride || question.prompt);
+  gather.say(hindiMaleTtsOptions, promptOverride || question.prompt);
 
   twiml.redirect({
     method: "POST"
   }, `/voice/hot-lead/${leadId}/repeat?step=${step}&retry=${retryCount}`);
 }
 
-async function startHotLeadOutboundCall(lead) {
+function ensureOutboundCallAttempts(lead) {
 
-  if (lead.status !== "HOT 🔥") {
+  lead.outboundCall = lead.outboundCall || {};
+
+  if (!Array.isArray(lead.outboundCall.callAttempts)) {
+    lead.outboundCall.callAttempts = [];
+  }
+
+  if (!lead.outboundCall.callAttempts.length && (lead.outboundCall.status || lead.outboundCall.callSid)) {
+    lead.outboundCall.callAttempts.push({
+      retryAttemptNumber: 1,
+      originalLeadId: lead._id,
+      retryTimestamp: lead.outboundCall.startedAt || lead.createdAt || new Date(),
+      retryReason: "Initial outbound call",
+      status: lead.outboundCall.status || "unknown",
+      callSid: lead.outboundCall.callSid,
+      error: lead.outboundCall.error,
+      startedAt: lead.outboundCall.startedAt,
+      completedAt: lead.outboundCall.completedAt
+    });
+  }
+
+  syncOutboundAttemptMetadata(lead);
+
+  return lead.outboundCall.callAttempts;
+}
+
+function syncOutboundAttemptMetadata(lead) {
+
+  lead.outboundCall = lead.outboundCall || {};
+  normalizeLeadAttemptHistory(lead);
+
+  const attempts = Array.isArray(lead.outboundCall.callAttempts)
+    ? lead.outboundCall.callAttempts
+    : [];
+
+  if (attempts.length) {
+    lead.outboundCall.attempt_history = attempts.map((attempt, index) => ({
+      attempt: attempt.retryAttemptNumber || index + 1,
+      status: attempt.status || "unknown",
+      type: attempt.retryReason || (index === 0 ? "Initial outbound call" : "Manual retry"),
+      timestamp: attempt.retryTimestamp || attempt.startedAt || attempt.completedAt || new Date()
+    }));
+  }
+
+  lead.outboundCall.retry_count = Math.max(0, attempts.length - 1);
+}
+
+function updateNextRetryTime(lead) {
+
+  const call = lead.outboundCall || {};
+  const attempts = call.callAttempts || [];
+
+  if (
+    retryableCallStatuses.includes(call.status) &&
+    attempts.length < maxOutboundCallAttempts
+  ) {
+    call.next_retry_time = new Date(Date.now() + 60 * 60 * 1000);
     return;
   }
+
+  call.next_retry_time = null;
+}
+
+function getWhatsAppFollowupMessage(lead, reason) {
+
+  const status = calculateLeadStatus(lead);
+  const fields = (lead.outboundCall && lead.outboundCall.structuredFields) || {};
+  const name = hasQualifiedValue(lead.name) ? lead.name : "there";
+  const callReason = String(reason || "").toLowerCase();
+
+  if (status === "COLD") {
+    return "";
+  }
+
+  if (callReason === "busy" || callReason === "no-answer" || callReason === "unanswered") {
+    return `Hi ${name}, we tried calling regarding your property enquiry. Please reply with a convenient time.`;
+  }
+
+  if (status === "HOT") {
+    return `Hi ${name}, thank you for speaking with us. Based on your requirement for ${displayStructuredValue(fields.configuration)} in Navi Mumbai with budget ${displayStructuredValue(fields.budget)}, our team will share suitable options shortly.`;
+  }
+
+  return `Hi ${name}, thank you for your interest. We have noted your requirement and our team will contact you.`;
+}
+
+function getManualWhatsAppFollowupMessage(lead) {
+
+  const name = hasQualifiedValue(lead.name) ? lead.name : "there";
+  const status = calculateLeadStatus(lead);
+
+  if (status === "PENDING") {
+    return `Hi ${name}, we tried calling you regarding your property enquiry. Please reply with a convenient time for a callback.`;
+  }
+
+  return getWhatsAppFollowupMessage(lead, "manual-dashboard") ||
+    `Hi ${name}, we tried calling you regarding your property enquiry. Please reply with a convenient time for a callback.`;
+}
+
+async function sendWhatsAppFollowup(lead, reason, manual = false) {
+
+  console.log("📲 sendWhatsAppFollowup entered");
+  lead.whatsapp_followup = lead.whatsapp_followup || {};
+
+  if (lead.whatsapp_followup.sent && !manual) {
+    return lead.whatsapp_followup;
+  }
+
+  const message = manual
+    ? getManualWhatsAppFollowupMessage(lead)
+    : getWhatsAppFollowupMessage(lead, reason);
+
+  if (!message) {
+    lead.whatsapp_followup = {
+      sent: false,
+      status: "skipped",
+      reason,
+      message: "",
+      timestamp: new Date(),
+      twilio_sid: "",
+      error: ""
+    };
+    normalizeLeadAttemptHistory(lead);
+    await lead.save();
+    return lead.whatsapp_followup;
+  }
+
+  const formattedPhone = formatIndianPhoneNumber(lead.phone);
+  const whatsappTo = formattedPhone ? `whatsapp:${formattedPhone}` : "";
+
+  if (!formattedPhone || !twilioWhatsAppFrom || !accountSid || !authToken) {
+    lead.whatsapp_followup = {
+      sent: false,
+      status: "failed",
+      reason,
+      message,
+      timestamp: new Date(),
+      twilio_sid: "",
+      error: "Twilio WhatsApp is not configured"
+    };
+    normalizeLeadAttemptHistory(lead);
+    await lead.save();
+    return lead.whatsapp_followup;
+  }
+
+  try {
+    console.log("📲 WhatsApp From:", process.env.TWILIO_WHATSAPP_FROM);
+    console.log("📲 WhatsApp To:", whatsappTo);
+    console.log("📲 WhatsApp Message:", message);
+
+    const msg = await client.messages.create({
+      from: process.env.TWILIO_WHATSAPP_FROM,
+      to: whatsappTo,
+      body: message
+    });
+    console.log("✅ WhatsApp SID:", msg.sid);
+
+    lead.whatsapp_followup = {
+      sent: true,
+      status: "sent",
+      reason,
+      message,
+      timestamp: new Date(),
+      twilio_sid: msg.sid,
+      error: ""
+    };
+  }
+  catch (err) {
+    console.error("❌ WhatsApp send failed:", err.message);
+    console.error(err);
+
+    lead.whatsapp_followup = {
+      sent: false,
+      status: "failed",
+      reason,
+      message,
+      timestamp: new Date(),
+      twilio_sid: "",
+      error: err.message
+    };
+  }
+
+  normalizeLeadAttemptHistory(lead);
+  await lead.save();
+  return lead.whatsapp_followup;
+}
+
+function updateCurrentCallAttempt(lead, updates) {
+
+  const attempts = ensureOutboundCallAttempts(lead);
+  const currentAttemptNumber = lead.outboundCall.currentAttemptNumber || attempts.length;
+  const attempt = attempts.find((item) => item.retryAttemptNumber === currentAttemptNumber) ||
+    attempts[attempts.length - 1];
+
+  if (attempt) {
+    Object.keys(updates).forEach((key) => {
+      if (updates[key] !== undefined) {
+        attempt[key] = updates[key];
+      }
+    });
+    syncOutboundAttemptMetadata(lead);
+  }
+}
+
+function updateCallAttemptBySid(lead, callSid, updates) {
+
+  const attempts = ensureOutboundCallAttempts(lead);
+  const attempt = callSid
+    ? attempts.find((item) => item.callSid === callSid)
+    : null;
+
+  if (attempt) {
+    Object.keys(updates).forEach((key) => {
+      if (updates[key] !== undefined) {
+        attempt[key] = updates[key];
+      }
+    });
+    syncOutboundAttemptMetadata(lead);
+    return attempt;
+  }
+
+  updateCurrentCallAttempt(lead, updates);
+  return null;
+}
+
+async function startHotLeadOutboundCall(lead, options = {}) {
+
+  const isRetry = options.isRetry === true;
+  const retryReason = options.retryReason || "Manual retry";
+
+  const attempts = ensureOutboundCallAttempts(lead);
+  const attemptNumber = isRetry ? attempts.length + 1 : 1;
+  const startedAt = new Date();
+  const existingOutboundCall = lead.outboundCall || {};
 
   if (!lead.phone) {
     lead.outboundCall = {
       status: "skipped",
-      error: "Lead phone number is missing"
+      error: "Lead phone number is missing",
+      structuredFields: existingOutboundCall.structuredFields,
+      validationErrors: existingOutboundCall.validationErrors,
+      summary: existingOutboundCall.summary,
+      currentAttemptNumber: attemptNumber,
+      callAttempts: attempts
     };
+    attempts.push({
+      retryAttemptNumber: attemptNumber,
+      originalLeadId: lead._id,
+      retryTimestamp: startedAt,
+      retryReason: isRetry ? retryReason : "Initial outbound call",
+      status: "skipped",
+      error: "Lead phone number is missing",
+      startedAt
+    });
+    syncOutboundAttemptMetadata(lead);
+    updateNextRetryTime(lead);
+    lead.status = calculateLeadStatus(lead);
+    normalizeLeadAttemptHistory(lead);
     await lead.save();
     return;
   }
 
   const webhookUrl = buildVoiceWebhookUrl(`/voice/hot-lead/${lead._id}`);
+  const missingTwilioConfig = [];
 
-  if (!webhookUrl || !twilioVoiceFrom || !accountSid || !authToken) {
+  if (!accountSid) missingTwilioConfig.push("TWILIO_ACCOUNT_SID");
+  if (!authToken) missingTwilioConfig.push("TWILIO_AUTH_TOKEN");
+  if (!twilioVoiceFrom) missingTwilioConfig.push("TWILIO_PHONE_NUMBER");
+  if (!webhookUrl) missingTwilioConfig.push("TWILIO_VOICE_WEBHOOK_BASE_URL or PUBLIC_BASE_URL");
+
+  if (missingTwilioConfig.length) {
+    console.error("❌ Twilio Voice config missing:", missingTwilioConfig.join(", "));
     lead.outboundCall = {
       status: "skipped",
-      error: "Twilio Voice is not configured. Set TWILIO_VOICE_WEBHOOK_BASE_URL or PUBLIC_BASE_URL, TWILIO_VOICE_FROM, TWILIO_ACCOUNT_SID, and TWILIO_AUTH_TOKEN."
+      error: "Twilio Voice is not configured. Set TWILIO_VOICE_WEBHOOK_BASE_URL or PUBLIC_BASE_URL, TWILIO_VOICE_FROM, TWILIO_ACCOUNT_SID, and TWILIO_AUTH_TOKEN.",
+      structuredFields: existingOutboundCall.structuredFields,
+      validationErrors: existingOutboundCall.validationErrors,
+      summary: existingOutboundCall.summary,
+      currentAttemptNumber: attemptNumber,
+      callAttempts: attempts
     };
+    attempts.push({
+      retryAttemptNumber: attemptNumber,
+      originalLeadId: lead._id,
+      retryTimestamp: startedAt,
+      retryReason: isRetry ? retryReason : "Initial outbound call",
+      status: "skipped",
+      error: lead.outboundCall.error,
+      startedAt
+    });
+    syncOutboundAttemptMetadata(lead);
+    updateNextRetryTime(lead);
+    lead.status = calculateLeadStatus(lead);
+    normalizeLeadAttemptHistory(lead);
     await lead.save();
     return;
   }
 
 try
 {
-const rawPhone = String(lead.phone).replace(/\D/g, "");
-
-let formattedPhone = rawPhone;
-
-if (!formattedPhone.startsWith("91")) {
-    formattedPhone = "91" + formattedPhone;
-}
-
-formattedPhone = "+" + formattedPhone;
+const formattedPhone = formatIndianPhoneNumber(lead.phone);
+console.log("📞 Twilio formatted phone:", formattedPhone);
 
 const call = await client.calls.create({
       to: formattedPhone,
@@ -1189,21 +1656,59 @@ const call = await client.calls.create({
       statusCallbackMethod: "POST",
       statusCallbackEvent: ["initiated", "ringing", "answered", "completed"]
 });
+console.log("✅ Twilio call SID:", call.sid);
+
+    attempts.push({
+      retryAttemptNumber: attemptNumber,
+      originalLeadId: lead._id,
+      retryTimestamp: startedAt,
+      retryReason: isRetry ? retryReason : "Initial outbound call",
+      status: "queued",
+      callSid: call.sid,
+      startedAt
+    });
 
     lead.outboundCall = {
       status: "queued",
       callSid: call.sid,
-      startedAt: new Date(),
+      startedAt,
       transcript: [],
-      answers: []
+      answers: [],
+      structuredFields: existingOutboundCall.structuredFields,
+      validationErrors: existingOutboundCall.validationErrors,
+      summary: existingOutboundCall.summary,
+      currentAttemptNumber: attemptNumber,
+      callAttempts: attempts
     };
+    syncOutboundAttemptMetadata(lead);
+    updateNextRetryTime(lead);
+    lead.status = calculateLeadStatus(lead);
+    normalizeLeadAttemptHistory(lead);
     await lead.save();
   }
   catch (err) {
+    attempts.push({
+      retryAttemptNumber: attemptNumber,
+      originalLeadId: lead._id,
+      retryTimestamp: startedAt,
+      retryReason: isRetry ? retryReason : "Initial outbound call",
+      status: "failed",
+      error: err.message,
+      startedAt
+    });
     lead.outboundCall = {
       status: "failed",
-      error: err.message
+      error: err.message,
+      structuredFields: existingOutboundCall.structuredFields,
+      validationErrors: existingOutboundCall.validationErrors,
+      summary: existingOutboundCall.summary,
+      currentAttemptNumber: attemptNumber,
+      callAttempts: attempts
     };
+    syncOutboundAttemptMetadata(lead);
+    updateNextRetryTime(lead);
+    lead.status = calculateLeadStatus(lead);
+    normalizeLeadAttemptHistory(lead);
     await lead.save();
     console.log(err.message);
   }
@@ -1254,6 +1759,127 @@ app.get("/builders/:builder/leads", async (req, res) => {
   .sort({ createdAt: -1 });
 
   res.send(leads);
+});
+
+app.post("/builders/:builder/leads/:leadId/retry-call", async (req, res) => {
+
+  const user = await findBuilder(req.params.builder);
+
+  if (!user) {
+    return res.status(404).send({
+      success: false,
+      message: "Builder not found"
+    });
+  }
+
+  const lead = await Lead.findOne({
+    _id: req.params.leadId,
+    builder: user.username
+  });
+
+  if (!lead) {
+    return res.status(404).send({
+      success: false,
+      message: "Lead not found"
+    });
+  }
+
+  const currentStatus = lead.outboundCall && lead.outboundCall.status;
+
+  if (!retryableCallStatuses.includes(currentStatus)) {
+    return res.status(400).send({
+      success: false,
+      message: "Call status is not eligible for retry"
+    });
+  }
+
+  const attempts = ensureOutboundCallAttempts(lead);
+
+  if (attempts.length >= maxOutboundCallAttempts) {
+    return res.status(400).send({
+      success: false,
+      message: "Maximum retry limit reached"
+    });
+  }
+
+  const retryReason = req.body.retryReason || currentStatus || "Manual retry";
+
+  await startHotLeadOutboundCall(lead, {
+    isRetry: true,
+    retryReason
+  });
+
+  const updatedLead = await Lead.findById(lead._id)
+    .populate("matchedProperties.property");
+  const analytics = await getAnalyticsForBuilder(user.username);
+  const responseLead = updatedLead ? updatedLead.toObject() : lead.toObject();
+
+  io.to(builderRoom(user.username)).emit("dashboard:update", {
+    lead: responseLead,
+    analytics,
+    matches: []
+  });
+
+  if (
+    lead.outboundCall &&
+    ["failed", "skipped"].includes(lead.outboundCall.status) &&
+    lead.outboundCall.error
+  ) {
+    return res.status(502).send({
+      success: false,
+      message: "Retry failed. Please check call configuration.",
+      lead: responseLead
+    });
+  }
+
+  res.send({
+    success: true,
+    lead: responseLead
+  });
+});
+
+app.post("/api/leads/:id/whatsapp-followup", async (req, res) => {
+
+  try {
+    console.log("📲 WhatsApp route entered");
+    const leadId = req.params.id;
+    console.log("📲 WhatsApp request:", leadId);
+
+    const lead = await Lead.findById(leadId);
+    console.log("📲 Lead found:", lead?._id);
+
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        error: "Lead not found"
+      });
+    }
+
+    console.log("📲 Calling sendWhatsAppFollowup now");
+    const result =
+      await sendWhatsAppFollowup(
+        lead,
+        "manual-dashboard",
+        true
+      );
+
+    return res.json({
+      success: true,
+      message: "WhatsApp follow-up sent",
+      whatsapp_followup: result
+    });
+  }
+  catch (err) {
+    console.error(
+      "WhatsApp API error:",
+      err
+    );
+
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
 });
 
 app.get("/builders/:builder/analytics", async (req, res) => {
@@ -1332,13 +1958,11 @@ app.post("/voice/hot-lead/:leadId", async (req, res) => {
   appendCallTranscript(lead, "assistant", intro);
   appendCallTranscript(lead, "assistant", getQuestionPrompt(0));
   lead.markModified("outboundCall");
+  normalizeLeadAttemptHistory(lead);
   await lead.save();
 
   const twiml = new twilio.twiml.VoiceResponse();
-  twiml.say({
-    voice: "alice",
-    language: "en-IN"
-  }, intro);
+  twiml.say(hindiMaleTtsOptions, intro);
   addQuestionGather(twiml, lead._id, 0);
 
   res.type("text/xml").send(twiml.toString());
@@ -1390,6 +2014,7 @@ app.post("/voice/hot-lead/:leadId/repeat", async (req, res) => {
       updateStructuredQualification(lead);
       appendCallTranscript(lead, "assistant", getQuestionPrompt(nextStep));
       lead.markModified("outboundCall");
+      normalizeLeadAttemptHistory(lead);
       await lead.save();
       addQuestionGather(twiml, lead._id, nextStep);
     }
@@ -1403,8 +2028,13 @@ app.post("/voice/hot-lead/:leadId/repeat", async (req, res) => {
       lead.outboundCall.status = "completed";
       lead.outboundCall.completedAt = new Date();
       lead.outboundCall.summary = buildQualificationSummary(lead);
+      updateCurrentCallAttempt(lead, {
+        status: "completed",
+        completedAt: lead.outboundCall.completedAt
+      });
       appendCallTranscript(lead, "assistant", "Thank you. Hamari team aapki details review karke jaldi contact karegi.");
       lead.markModified("outboundCall");
+      normalizeLeadAttemptHistory(lead);
       await lead.save();
       const updatedLead = await Lead.findById(lead._id)
         .populate("matchedProperties.property");
@@ -1414,10 +2044,7 @@ app.post("/voice/hot-lead/:leadId/repeat", async (req, res) => {
         matches: []
       });
 
-      twiml.say({
-        voice: "alice",
-        language: "en-IN"
-      }, "Thank you. Hamari team aapki details review karke jaldi contact karegi.");
+      twiml.say(hindiMaleTtsOptions, "Thank you. Hamari team aapki details review karke jaldi contact karegi.");
       twiml.hangup();
     }
 
@@ -1469,6 +2096,7 @@ app.post("/voice/hot-lead/:leadId/answer", async (req, res) => {
       retryCount
     );
     lead.markModified("outboundCall");
+    normalizeLeadAttemptHistory(lead);
     await lead.save();
 
     addQuestionGather(
@@ -1508,6 +2136,7 @@ app.post("/voice/hot-lead/:leadId/answer", async (req, res) => {
     updateStructuredQualification(lead);
     appendCallTranscript(lead, "assistant", getQuestionPrompt(nextStep));
     lead.markModified("outboundCall");
+    normalizeLeadAttemptHistory(lead);
     await lead.save();
     addQuestionGather(twiml, lead._id, nextStep);
   }
@@ -1521,8 +2150,13 @@ app.post("/voice/hot-lead/:leadId/answer", async (req, res) => {
     lead.outboundCall.status = "completed";
     lead.outboundCall.completedAt = new Date();
     lead.outboundCall.summary = buildQualificationSummary(lead);
+    updateCurrentCallAttempt(lead, {
+      status: "completed",
+      completedAt: lead.outboundCall.completedAt
+    });
     appendCallTranscript(lead, "assistant", "Thank you. Hamari team aapki details review karke jaldi contact karegi.");
     lead.markModified("outboundCall");
+    normalizeLeadAttemptHistory(lead);
     await lead.save();
     const updatedLead = await Lead.findById(lead._id)
       .populate("matchedProperties.property");
@@ -1532,10 +2166,7 @@ app.post("/voice/hot-lead/:leadId/answer", async (req, res) => {
       matches: []
     });
 
-    twiml.say({
-      voice: "alice",
-      language: "en-IN"
-    }, "Thank you. Hamari team aapki details review karke jaldi contact karegi.");
+    twiml.say(hindiMaleTtsOptions, "Thank you. Hamari team aapki details review karke jaldi contact karegi.");
     twiml.hangup();
   }
 
@@ -1547,16 +2178,46 @@ app.post("/voice/hot-lead/:leadId/status", async (req, res) => {
   const lead = await Lead.findById(req.params.leadId);
 
   if (lead) {
-    lead.outboundCall = lead.outboundCall || {};
-    lead.outboundCall.status = req.body.CallStatus || lead.outboundCall.status;
-    lead.outboundCall.callSid = req.body.CallSid || lead.outboundCall.callSid;
+    const callbackCallSid = req.body.CallSid;
+    const isCurrentCall = !callbackCallSid ||
+      !lead.outboundCall ||
+      !lead.outboundCall.callSid ||
+      callbackCallSid === lead.outboundCall.callSid;
 
-    if (req.body.CallStatus === "completed" && !lead.outboundCall.completedAt) {
+    lead.outboundCall = lead.outboundCall || {};
+
+    if (isCurrentCall) {
+      lead.outboundCall.status = req.body.CallStatus || lead.outboundCall.status;
+      lead.outboundCall.callSid = callbackCallSid || lead.outboundCall.callSid;
+    }
+
+    if (isCurrentCall && req.body.CallStatus === "completed" && !lead.outboundCall.completedAt) {
       lead.outboundCall.completedAt = new Date();
     }
 
+    updateCallAttemptBySid(lead, callbackCallSid, {
+      status: req.body.CallStatus || lead.outboundCall.status,
+      callSid: callbackCallSid || lead.outboundCall.callSid,
+      completedAt: isCurrentCall ? lead.outboundCall.completedAt : undefined
+    });
+    updateNextRetryTime(lead);
+    lead.status = calculateLeadStatus(lead);
+
     lead.markModified("outboundCall");
+    normalizeLeadAttemptHistory(lead);
     await lead.save();
+
+    if (["completed", "busy", "no-answer"].includes(req.body.CallStatus)) {
+      await sendWhatsAppFollowup(lead, req.body.CallStatus);
+    }
+
+    const updatedLead = await Lead.findById(lead._id)
+      .populate("matchedProperties.property");
+    io.to(builderRoom(lead.builder)).emit("dashboard:update", {
+      lead: updatedLead ? updatedLead.toObject() : lead.toObject(),
+      analytics: await getAnalyticsForBuilder(lead.builder),
+      matches: []
+    });
   }
 
   res.sendStatus(204);
@@ -1565,10 +2226,12 @@ app.post("/voice/hot-lead/:leadId/status", async (req, res) => {
 // =========================
 // SAVE LEAD
 // =========================
-app.post("/qualify", async (req, res) => {
+async function submitLead(req, res) {
 
-  const ai = calculateLeadScore(req.body);
-  const intelligence = generateLeadIntelligence(req.body, ai.score);
+  try {
+  const initialScore = 0;
+  const initialStatus = "PENDING";
+  const intelligence = generateLeadIntelligence(req.body, initialScore);
 
   const lead = new Lead({
     builder: req.body.builder,
@@ -1579,8 +2242,8 @@ app.post("/qualify", async (req, res) => {
     timeline: req.body.timeline,
     text: req.body.text,
     source: req.body.source || "Web",
-    score: ai.score,
-    status: ai.status,
+    score: initialScore,
+    status: initialStatus,
     intelligence
   });
 
@@ -1592,49 +2255,76 @@ app.post("/qualify", async (req, res) => {
     reasons: match.reasons
   }));
 
+  normalizeLeadAttemptHistory(lead);
   await lead.save();
+  console.log("✅ Lead saved:", lead._id);
 
-  await startHotLeadOutboundCall(lead);
-
-  const analytics = await getAnalyticsForBuilder(lead.builder);
-
-  io.to(builderRoom(lead.builder)).emit("dashboard:update", {
-    lead: lead.toObject(),
-    analytics,
-    matches: matches.map(serializePropertyMatch)
-  });
+  let savedLead = lead;
+  let responseLead = savedLead.toObject();
+  let postSaveWarning = "";
 
   try {
+    syncOutboundAttemptMetadata(lead);
+    lead.markModified("outboundCall");
+    normalizeLeadAttemptHistory(lead);
+    await lead.save();
+    responseLead = savedLead.toObject();
+  }
+  catch (err) {
+    postSaveWarning = "Lead saved but post-save action failed";
+    console.error("Post-save attempt metadata failed:", err.message);
+  }
 
-    await client.messages.create({
+  try {
+    console.log("📞 Starting outbound call for:", savedLead.phone);
+    await startHotLeadOutboundCall(savedLead);
+    if (
+      savedLead.outboundCall &&
+      ["failed", "skipped"].includes(savedLead.outboundCall.status)
+    ) {
+      throw new Error(savedLead.outboundCall.error || `Outbound call ${savedLead.outboundCall.status}`);
+    }
+    console.log("✅ Outbound call triggered");
+    responseLead = savedLead.toObject();
+  }
+  catch (err) {
+    postSaveWarning = "Lead saved but post-save action failed";
+    console.error("❌ Outbound call trigger failed:", err.message);
+  }
 
-      from: "whatsapp:+14155238886",
+  try {
+    const analytics = await getAnalyticsForBuilder(lead.builder);
 
-to: process.env.TWILIO_TO,
-      body:
-`${ai.status} LEAD (${ai.score}/100)
-
-${req.body.name}
-${req.body.location}
-${req.body.budget}
-${req.body.timeline}`
-
+    io.to(builderRoom(lead.builder)).emit("dashboard:update", {
+      lead: responseLead,
+      analytics,
+      matches: matches.map(serializePropertyMatch)
     });
-
-    console.log("✅ WhatsApp Sent");
-
-  } catch (err) {
-
-    console.log(err.message);
-
+  }
+  catch (err) {
+    postSaveWarning = "Lead saved but post-save action failed";
+    console.error("Post-save dashboard update failed:", err.message);
   }
 
   res.send({
     success: true,
-    data: lead,
-    matches: matches.map(serializePropertyMatch)
+    lead: responseLead,
+    data: responseLead,
+    matches: matches.map(serializePropertyMatch),
+    warning: postSaveWarning || undefined
   });
-});
+  }
+  catch (err) {
+    console.error("Lead submission failed:", err.message);
+  res.status(500).send({
+      success: false,
+      message: err.message || "Error submitting lead"
+    });
+  }
+}
+
+app.post("/qualify", submitLead);
+app.post("/api/leads", submitLead);
 
 // =========================
 // TEST
