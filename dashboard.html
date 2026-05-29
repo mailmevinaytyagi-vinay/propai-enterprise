@@ -40,17 +40,76 @@
 
     .stats {
       display: grid;
-      grid-template-columns: repeat(4,1fr);
-      gap: 15px;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 14px;
     }
 
     .stat-box {
-      background: linear-gradient(to bottom right, #ffffff, #f3f4f6);
-      padding: 20px;
+      position: relative;
+      overflow: hidden;
+      background: #ffffff;
+      padding: 16px;
+      border: 1px solid #e5e7eb;
       border-radius: 10px;
-      text-align: center;
-      font-size: 22px;
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.07);
+      min-height: 92px;
+    }
+
+    .stat-box::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 4px;
+      background: #1e3a8a;
+    }
+
+    .stat-box.hot::before {
+      background: #16a34a;
+    }
+
+    .stat-box.warm::before {
+      background: #f97316;
+    }
+
+    .stat-box.cold::before {
+      background: #dc2626;
+    }
+
+    .stat-box.visit::before {
+      background: #7c3aed;
+    }
+
+    .stat-box.conversion::before {
+      background: #047857;
+    }
+
+    .stat-label {
+      display: block;
+      color: #6b7280;
+      font-size: 12px;
       font-weight: bold;
+      letter-spacing: 0;
+      text-transform: uppercase;
+      line-height: 1.35;
+    }
+
+    .stat-value {
+      display: block;
+      margin-top: 10px;
+      color: #111827;
+      font-size: 28px;
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    .stat-note {
+      display: block;
+      margin-top: 8px;
+      color: #6b7280;
+      font-size: 12px;
+      line-height: 1.35;
     }
 
     .lead {
@@ -82,6 +141,50 @@
       background: #eef2ff;
       padding: 8px 10px;
       line-height: 1.45;
+    }
+
+    .call-analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .call-analysis-column {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 8px 10px;
+      min-width: 0;
+      line-height: 1.4;
+    }
+
+    .call-analysis-label {
+      display: block;
+      color: #6b7280;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .analysis-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      color: white;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .analysis-red {
+      background: #dc2626;
+    }
+
+    .analysis-orange {
+      background: #f97316;
+    }
+
+    .analysis-green {
+      background: #16a34a;
     }
 
     .lead-call {
@@ -135,6 +238,16 @@
       flex-wrap: wrap;
       gap: 8px;
       align-items: center;
+    }
+
+    .view-transcript-button {
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 6px;
+      background: #1e3a8a;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
     }
 
     .retry-call-button {
@@ -195,6 +308,88 @@
     .whatsapp-followup-button:disabled {
       background: #9ca3af;
       cursor: not-allowed;
+    }
+
+    .recommendations-button {
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 6px;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .crm-export-button {
+      padding: 8px 12px;
+      border: 0;
+      border-radius: 6px;
+      background: #0f766e;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .crm-export-button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .crm-status {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      color: #374151;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .crm-status.sent {
+      background: #ccfbf1;
+      color: #115e59;
+    }
+
+    .recommendation-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .recommendation-card {
+      border: 1px solid #dbeafe;
+      border-left: 4px solid #2563eb;
+      border-radius: 8px;
+      background: #f8fafc;
+      padding: 12px;
+      line-height: 1.45;
+    }
+
+    .recommendation-card h4 {
+      margin: 0 0 8px 0;
+      color: #111827;
+      font-size: 16px;
+    }
+
+    .recommendation-meta {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 8px 0;
+    }
+
+    .recommendation-meta span {
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      background: #ffffff;
+      padding: 7px 8px;
+      color: #374151;
+      font-size: 13px;
+    }
+
+    .recommendation-reason {
+      color: #374151;
+      font-size: 13px;
     }
 
     .whatsapp-status {
@@ -266,6 +461,136 @@
       color: #6b7280;
     }
 
+    .transcript-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(17, 24, 39, 0.62);
+    }
+
+    .transcript-modal.open {
+      display: flex;
+    }
+
+    .transcript-dialog {
+      width: min(860px, 100%);
+      max-height: 90vh;
+      overflow: auto;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.24);
+    }
+
+    .transcript-header {
+      position: sticky;
+      top: 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      padding: 18px 22px;
+      background: #1e3a8a;
+      color: white;
+      z-index: 1;
+    }
+
+    .transcript-header h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .transcript-close {
+      border: 0;
+      background: rgba(255,255,255,0.15);
+      color: white;
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .transcript-body {
+      padding: 20px 22px 24px;
+    }
+
+    .transcript-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .transcript-meta-item,
+    .transcript-summary,
+    .chat-transcript {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #f8fafc;
+      padding: 10px 12px;
+    }
+
+    .transcript-label {
+      display: block;
+      margin-bottom: 4px;
+      color: #6b7280;
+      font-size: 12px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .transcript-summary {
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    .chat-transcript {
+      display: grid;
+      gap: 10px;
+      background: white;
+    }
+
+    .chat-message {
+      max-width: 84%;
+      padding: 9px 11px;
+      border-radius: 8px;
+      line-height: 1.45;
+      border: 1px solid #e5e7eb;
+      background: #f8fafc;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .chat-message.customer {
+      justify-self: start;
+      border-color: #dbeafe;
+      background: #eff6ff;
+    }
+
+    .chat-message.ai {
+      justify-self: end;
+      border-color: #ddd6fe;
+      background: #f5f3ff;
+    }
+
+    .chat-speaker {
+      display: block;
+      margin-bottom: 3px;
+      color: #374151;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .transcript-unavailable {
+      color: #6b7280;
+      font-weight: bold;
+    }
+
     @media (max-width: 700px) {
       .stats {
         grid-template-columns: repeat(2,1fr);
@@ -275,12 +600,37 @@
         grid-template-columns: 1fr;
       }
 
+      .call-analysis-grid {
+        grid-template-columns: 1fr;
+      }
+
       .lead-filter,
       .lead-filter select,
       .export-button,
+      .view-transcript-button,
+      .recommendations-button,
+      .crm-export-button,
       .retry-call-button,
       .whatsapp-followup-button {
         width: 100%;
+      }
+
+      .transcript-meta {
+        grid-template-columns: 1fr;
+      }
+
+      .chat-message {
+        max-width: 100%;
+      }
+
+      .recommendation-meta {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (min-width: 701px) and (max-width: 1050px) {
+      .stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
     }
 
@@ -299,23 +649,39 @@
   <div class="stats">
 
     <div class="stat-box">
-      Total<br>
-      <span id="total">0</span>
+      <span class="stat-label">Total Leads</span>
+      <span class="stat-value" id="total">0</span>
+      <span class="stat-note">All captured enquiries</span>
     </div>
 
-    <div class="stat-box">
-      🔥 HOT<br>
-      <span id="hot">0</span>
+    <div class="stat-box hot">
+      <span class="stat-label">HOT Leads</span>
+      <span class="stat-value" id="hot">0</span>
+      <span class="stat-note">Ready for sales action</span>
     </div>
 
-    <div class="stat-box">
-      🟡 WARM<br>
-      <span id="warm">0</span>
+    <div class="stat-box warm">
+      <span class="stat-label">WARM Leads</span>
+      <span class="stat-value" id="warm">0</span>
+      <span class="stat-note">Needs follow-up</span>
     </div>
 
-    <div class="stat-box">
-      ❄️ COLD<br>
-      <span id="cold">0</span>
+    <div class="stat-box cold">
+      <span class="stat-label">COLD Leads</span>
+      <span class="stat-value" id="cold">0</span>
+      <span class="stat-note">Low current intent</span>
+    </div>
+
+    <div class="stat-box visit">
+      <span class="stat-label">Site Visit Planned</span>
+      <span class="stat-value" id="siteVisitPlanned">0</span>
+      <span class="stat-note">Visit intent captured</span>
+    </div>
+
+    <div class="stat-box conversion">
+      <span class="stat-label">Conversion Rate</span>
+      <span class="stat-value" id="conversionRate">0%</span>
+      <span class="stat-note">HOT / Total leads</span>
     </div>
 
   </div>
@@ -365,12 +731,41 @@
         </select>
       </label>
 
+      <label class="lead-filter">
+        CRM status
+        <select id="crmStatusFilter">
+          <option value="all">All</option>
+          <option value="sent">CRM Sent</option>
+          <option value="pending">CRM Pending</option>
+        </select>
+      </label>
+
       <button class="export-button" id="exportCsvButton" type="button">Export CSV</button>
     </div>
     <div class="dashboard-message" id="dashboardMessage"></div>
     <div id="history"></div>
   </div>
 
+</div>
+
+<div class="transcript-modal" id="transcriptModal" aria-hidden="true">
+  <div class="transcript-dialog" role="dialog" aria-modal="true" aria-labelledby="transcriptModalTitle">
+    <div class="transcript-header">
+      <h3 id="transcriptModalTitle">Conversation Transcript</h3>
+      <button class="transcript-close" type="button" data-action="close-transcript" aria-label="Close transcript">&times;</button>
+    </div>
+    <div class="transcript-body" id="transcriptModalBody"></div>
+  </div>
+</div>
+
+<div class="transcript-modal" id="recommendationsModal" aria-hidden="true">
+  <div class="transcript-dialog" role="dialog" aria-modal="true" aria-labelledby="recommendationsModalTitle">
+    <div class="transcript-header">
+      <h3 id="recommendationsModalTitle">Property Recommendations</h3>
+      <button class="transcript-close" type="button" data-action="close-recommendations" aria-label="Close recommendations">&times;</button>
+    </div>
+    <div class="transcript-body" id="recommendationsModalBody"></div>
+  </div>
 </div>
 
 <script>
@@ -383,14 +778,48 @@ const builder = routeBuilder || params.get("builder") || "builder1";
 let chart;
 let socket;
 let allLeads = [];
+let builderProperties = [];
 const maxOutboundCallAttempts = 3;
 const retryableCallStatuses = ["failed", "no-answer", "busy", "unanswered", "cancelled", "canceled"];
+const fallbackPropertyInventory = [
+  {
+    title: "Demo Central 1BHK",
+    location: "Panvel",
+    price: 5200000,
+    budgetLabel: "52 lakh",
+    bhk: 1,
+    possession: "Immediate",
+    amenities: ["Security", "Parking"],
+    description: "Compact starter home for self-use buyers."
+  },
+  {
+    title: "Demo Lakeview 2BHK",
+    location: "Thane",
+    price: 7400000,
+    budgetLabel: "74 lakh",
+    bhk: 2,
+    possession: "Immediate",
+    amenities: ["Clubhouse", "Gym", "Parking"],
+    description: "Family-ready 2BHK near schools and daily conveniences."
+  },
+  {
+    title: "Demo Signature 3BHK",
+    location: "Navi Mumbai",
+    price: 12900000,
+    budgetLabel: "1.29 Cr",
+    bhk: 3,
+    possession: "Immediate",
+    amenities: ["Pool", "Concierge", "Station Access"],
+    description: "Premium apartment with strong end-use and investment appeal."
+  }
+];
 
 initializeDashboard();
 
 async function initializeDashboard() {
 
   await loadBuilderProfile();
+  await loadPropertyInventory();
   bindLeadControls();
   await loadHistory();
   await loadAnalytics();
@@ -399,12 +828,15 @@ async function initializeDashboard() {
 
 function bindLeadControls() {
 
-  ["leadStatusFilter", "callStatusFilter", "siteVisitFilter"].forEach((id) => {
+  ["leadStatusFilter", "callStatusFilter", "siteVisitFilter", "crmStatusFilter"].forEach((id) => {
     document.getElementById(id).addEventListener("change", renderFilteredLeads);
   });
 
   document.getElementById("exportCsvButton").addEventListener("click", exportFilteredLeadsCsv);
   document.getElementById("history").addEventListener("click", handleLeadActionClick);
+  document.getElementById("transcriptModal").addEventListener("click", handleTranscriptModalClick);
+  document.getElementById("recommendationsModal").addEventListener("click", handleRecommendationsModalClick);
+  document.addEventListener("keydown", handleTranscriptKeydown);
 }
 
 async function loadBuilderProfile() {
@@ -426,6 +858,21 @@ async function loadBuilderProfile() {
 
   document.getElementById("header").style.background =
     data.themeColor;
+}
+
+async function loadPropertyInventory() {
+
+  try {
+    const res = await fetch(`/builders/${builder}/properties`);
+    const properties = await res.json();
+
+    builderProperties = Array.isArray(properties) && properties.length
+      ? properties
+      : fallbackPropertyInventory;
+  }
+  catch (err) {
+    builderProperties = fallbackPropertyInventory;
+  }
 }
 
 function connectDashboardSocket() {
@@ -465,6 +912,7 @@ async function loadHistory() {
   const leads = await res.json();
 
   allLeads = Array.isArray(leads) ? leads : [];
+  renderSummaryCards();
   renderFilteredLeads();
 }
 
@@ -577,12 +1025,17 @@ function renderLeadStatusBadge(status) {
 function renderLeadScore(lead) {
 
   const status = getDashboardLeadStatus(lead);
+  const analysis = getCallAnalysis(lead);
 
   if (status === "PENDING") {
     return "";
   }
 
-  const score = Number(lead.score || 0);
+  const score = Number(
+    typeof analysis.leadScore === "number"
+      ? analysis.leadScore
+      : lead.score || 0
+  );
 
   return Number.isFinite(score) && score > 0
     ? ` (${escapeHtml(score)}/100)`
@@ -655,6 +1108,474 @@ function getLeadCall(lead) {
   return lead.outboundCall || {};
 }
 
+function getCallAnalysis(lead) {
+
+  const call = getLeadCall(lead);
+  const analysis = lead.callAnalysis || {};
+  const legacySentiment = call.sentiment === "positive"
+    ? "Interested"
+    : call.sentiment === "negative"
+      ? "Not Interested"
+      : call.sentiment === "neutral"
+        ? "Neutral"
+        : call.sentiment;
+
+  return {
+    transcript: analysis.transcript || call.fullTranscript || "",
+    summary: analysis.summary || call.aiSummary || call.summary || "",
+    sentiment: analysis.sentiment || legacySentiment || "Neutral",
+    leadScore: typeof analysis.leadScore === "number"
+      ? analysis.leadScore
+      : typeof call.leadScore === "number"
+        ? call.leadScore
+        : lead.score,
+    nextAction: analysis.nextAction || call.suggestedNextAction || "",
+    analyzedAt: analysis.analyzedAt || call.aiGeneratedAt
+  };
+}
+
+function hasTranscriptDisplayText(value) {
+
+  const text = String(value || "").trim();
+
+  return Boolean(text) && text !== "Call transcript is not available yet.";
+}
+
+function transcriptSpeakerLabel(speaker) {
+
+  const normalized = String(speaker || "").trim().toLowerCase();
+
+  if (["ai", "assistant", "agent", "system"].includes(normalized)) {
+    return "AI";
+  }
+
+  if (["customer", "lead", "user", "caller"].includes(normalized)) {
+    return "Customer";
+  }
+
+  return normalized
+    ? normalized.charAt(0).toUpperCase() + normalized.slice(1)
+    : "Customer";
+}
+
+function parseTranscriptLine(line) {
+
+  const match = String(line || "").match(/^\s*([^:]+):\s*(.*)$/);
+
+  if (!match) {
+    return {
+      speaker: "Customer",
+      text: String(line || "").trim()
+    };
+  }
+
+  return {
+    speaker: transcriptSpeakerLabel(match[1]),
+    text: match[2].trim()
+  };
+}
+
+function hasSpeakerLabeledTranscript(value) {
+
+  return /(^|\n)\s*(customer|ai|assistant|agent|system|lead|user|caller)\s*:/i.test(String(value || ""));
+}
+
+function getTranscriptMessages(lead) {
+
+  const call = getLeadCall(lead);
+  const analysis = getCallAnalysis(lead);
+
+  if (Array.isArray(call.transcript) && call.transcript.length) {
+    return call.transcript
+      .map((item) => {
+        if (typeof item === "string") {
+          return parseTranscriptLine(item);
+        }
+
+        const questionText = item.question
+          ? `Question: ${item.question}\n`
+          : "";
+        const normalizedText = item.normalizedAnswer && item.normalizedAnswer !== item.text
+          ? `\nNormalized: ${item.normalizedAnswer}`
+          : "";
+
+        return {
+          speaker: transcriptSpeakerLabel(item.speaker),
+          text: `${questionText}${item.text || item.rawAnswer || item.answer || ""}${normalizedText}`.trim()
+        };
+      })
+      .filter((item) => item.text);
+  }
+
+  const sourceText = [call.fullTranscript, analysis.transcript]
+    .find((value) => hasTranscriptDisplayText(value) && hasSpeakerLabeledTranscript(value));
+
+  if (sourceText) {
+    return String(sourceText)
+      .split(/\n+/)
+      .map(parseTranscriptLine)
+      .filter((item) => item.text);
+  }
+
+  return [];
+}
+
+function findLeadById(leadId) {
+
+  return allLeads.find((lead) => String(lead._id || lead.id || "") === String(leadId));
+}
+
+function renderTranscriptFields(lead, call) {
+
+  const fields = getCallFields(call);
+
+  return `
+    <div class="transcript-meta">
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Purpose</span>
+        ${escapeHtml(fields.purpose)}
+      </div>
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Configuration</span>
+        ${escapeHtml(fields.configuration)}
+      </div>
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Budget</span>
+        ${escapeHtml(fields.budget)}
+      </div>
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Funding status</span>
+        ${escapeHtml(fields.funding)}
+      </div>
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Site visit plan</span>
+        ${escapeHtml(fields.siteVisit)}
+      </div>
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Lead status</span>
+        ${renderLeadStatusBadge(getDashboardLeadStatus(lead))}
+      </div>
+    </div>
+  `;
+}
+
+function renderChatTranscript(messages) {
+
+  if (!messages.length) {
+    return `<div class="chat-transcript transcript-unavailable">Transcript not available</div>`;
+  }
+
+  return `
+    <div class="chat-transcript">
+      ${messages.map((message) => {
+        const speaker = transcriptSpeakerLabel(message.speaker);
+        const speakerClass = speaker === "AI" ? "ai" : "customer";
+
+        return `
+          <div class="chat-message ${speakerClass}">
+            <span class="chat-speaker">${escapeHtml(speaker)}:</span>
+            ${escapeHtml(message.text)}
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function openTranscriptModal(lead) {
+
+  const call = getLeadCall(lead);
+  const analysis = getCallAnalysis(lead);
+  const messages = getTranscriptMessages(lead);
+  const modal = document.getElementById("transcriptModal");
+  const body = document.getElementById("transcriptModalBody");
+
+  body.innerHTML = `
+    <div class="transcript-meta">
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Customer name</span>
+        ${escapeHtml(displayPendingValue(lead.name))}
+      </div>
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Phone</span>
+        ${escapeHtml(displayPendingValue(lead.phone))}
+      </div>
+    </div>
+    ${renderTranscriptFields(lead, call)}
+    <div class="transcript-summary">
+      <span class="transcript-label">AI summary</span>
+      ${escapeHtml(analysis.summary || "Pending")}
+    </div>
+    ${renderChatTranscript(messages)}
+  `;
+
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeTranscriptModal() {
+
+  const modal = document.getElementById("transcriptModal");
+
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+function handleTranscriptModalClick(event) {
+
+  if (
+    event.target.id === "transcriptModal" ||
+    event.target.closest("[data-action='close-transcript']")
+  ) {
+    closeTranscriptModal();
+  }
+}
+
+function handleTranscriptKeydown(event) {
+
+  if (event.key === "Escape") {
+    closeTranscriptModal();
+    closeRecommendationsModal();
+  }
+}
+
+function extractNumericBudget(value) {
+
+  const text = String(value || "").toLowerCase()
+    .replace(/,/g, "")
+    .replace(/\blacs\b/g, "lakh")
+    .replace(/\blakhs\b/g, "lakh")
+    .replace(/\blac\b/g, "lakh")
+    .replace(/\bcr\b/g, "crore")
+    .replace(/\bcrores\b/g, "crore");
+  const croreMatch = text.match(/(\d+(?:\.\d+)?)\s*crore/);
+  const lakhMatch = text.match(/(\d+(?:\.\d+)?)\s*lakh/);
+  const numericMatch = text.match(/\b(\d{7,})\b/);
+
+  if (croreMatch) {
+    return Number(croreMatch[1]) * 10000000;
+  }
+
+  if (lakhMatch) {
+    return Number(lakhMatch[1]) * 100000;
+  }
+
+  return numericMatch ? Number(numericMatch[1]) : 0;
+}
+
+function getRequestedBhk(value) {
+
+  const match = String(value || "").toLowerCase().match(/([1-5])\s*(bhk|b h k|bed|bedroom)/);
+
+  return match ? Number(match[1]) : 0;
+}
+
+function formatPropertyPrice(property) {
+
+  if (property.budgetLabel) {
+    return property.budgetLabel;
+  }
+
+  const price = Number(property.price || 0);
+
+  if (!price) {
+    return "Price on request";
+  }
+
+  return price >= 10000000
+    ? `${Number((price / 10000000).toFixed(2))} Cr`
+    : `${Number((price / 100000).toFixed(1))} lakh`;
+}
+
+function scoreRecommendation(lead, property) {
+
+  const fields = getCallFields(getLeadCall(lead));
+  const requestedBhk = getRequestedBhk(fields.configuration || lead.text);
+  const leadBudget = extractNumericBudget(fields.budget || lead.budget);
+  const propertyPrice = Number(property.price || 0);
+  const leadLocation = String(lead.location || "").trim().toLowerCase();
+  const propertyLocation = String(property.location || "").trim().toLowerCase();
+  const purpose = String(fields.purpose || "").trim().toLowerCase();
+  const reasons = [];
+  let score = 0;
+
+  if (requestedBhk && Number(property.bhk) === requestedBhk) {
+    score += 35;
+    reasons.push(`${property.bhk} BHK matches requested configuration`);
+  }
+
+  if (leadBudget && propertyPrice) {
+    if (propertyPrice <= leadBudget) {
+      score += 30;
+      reasons.push(`Fits budget around ${fields.budget || lead.budget}`);
+    }
+    else if (propertyPrice <= leadBudget * 1.15) {
+      score += 15;
+      reasons.push("Slightly above budget but close enough for demo options");
+    }
+  }
+
+  if (leadLocation && propertyLocation && leadLocation === propertyLocation) {
+    score += 20;
+    reasons.push(`Location match in ${property.location}`);
+  }
+
+  if (purpose.includes("investment")) {
+    score += 10;
+    reasons.push("Suitable for investment-focused enquiry");
+  }
+  else if (purpose.includes("self") || purpose.includes("family")) {
+    score += 10;
+    reasons.push("Suitable for self-use or family requirement");
+  }
+
+  if (!reasons.length) {
+    reasons.push("Closest available inventory for the captured requirement");
+  }
+
+  return {
+    property,
+    matchScore: score,
+    reasons
+  };
+}
+
+function getLeadRecommendations(lead) {
+
+  if (getDashboardLeadStatus(lead) === "PENDING") {
+    return [];
+  }
+
+  return builderProperties
+    .map((property) => scoreRecommendation(lead, property))
+    .filter((match) => match.matchScore > 0)
+    .sort((a, b) => b.matchScore - a.matchScore)
+    .slice(0, 3);
+}
+
+function renderRecommendationCards(recommendations) {
+
+  if (!recommendations.length) {
+    return `<div class="transcript-unavailable">No recommendations available for this lead yet.</div>`;
+  }
+
+  return `
+    <div class="recommendation-list">
+      ${recommendations.map((match) => {
+        const property = match.property;
+
+        return `
+          <div class="recommendation-card">
+            <h4>${escapeHtml(property.title || property.name || "Unnamed property")}</h4>
+            <div class="recommendation-meta">
+              <span><b>Location</b><br>${escapeHtml(property.location || "Not specified")}</span>
+              <span><b>Configuration</b><br>${escapeHtml(property.bhk || "N/A")} BHK</span>
+              <span><b>Price</b><br>${escapeHtml(formatPropertyPrice(property))}</span>
+            </div>
+            <div class="recommendation-reason">
+              <b>Match reason:</b> ${match.reasons.map(escapeHtml).join(" · ")}
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function openRecommendationsModal(lead) {
+
+  const call = getLeadCall(lead);
+  const fields = getCallFields(call);
+  const recommendations = getLeadRecommendations(lead);
+  const modal = document.getElementById("recommendationsModal");
+  const body = document.getElementById("recommendationsModalBody");
+
+  body.innerHTML = `
+    <div class="transcript-meta">
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Customer</span>
+        ${escapeHtml(displayPendingValue(lead.name))}
+      </div>
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Lead status</span>
+        ${renderLeadStatusBadge(getDashboardLeadStatus(lead))}
+      </div>
+    </div>
+    <div class="transcript-meta">
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Configuration</span>
+        ${escapeHtml(fields.configuration)}
+      </div>
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Budget</span>
+        ${escapeHtml(fields.budget)}
+      </div>
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Location</span>
+        ${escapeHtml(displayPendingValue(lead.location))}
+      </div>
+      <div class="transcript-meta-item">
+        <span class="transcript-label">Purpose</span>
+        ${escapeHtml(fields.purpose)}
+      </div>
+    </div>
+    ${renderRecommendationCards(recommendations)}
+  `;
+
+  modal.classList.add("open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeRecommendationsModal() {
+
+  const modal = document.getElementById("recommendationsModal");
+
+  modal.classList.remove("open");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+function handleRecommendationsModalClick(event) {
+
+  if (
+    event.target.id === "recommendationsModal" ||
+    event.target.closest("[data-action='close-recommendations']")
+  ) {
+    closeRecommendationsModal();
+  }
+}
+
+function getLeadScoreColor(score) {
+
+  const numericScore = Number(score || 0);
+
+  if (numericScore <= 40) {
+    return "red";
+  }
+
+  if (numericScore <= 70) {
+    return "orange";
+  }
+
+  return "green";
+}
+
+function getSentimentColor(sentiment) {
+
+  if (sentiment === "Interested") {
+    return "green";
+  }
+
+  if (sentiment === "Not Interested") {
+    return "red";
+  }
+
+  return "orange";
+}
+
 function getLeadCallStatus(lead) {
 
   const call = getLeadCall(lead);
@@ -708,11 +1629,66 @@ function getNormalizedSiteVisitFilterValue(lead) {
   return siteVisit;
 }
 
+function hasPlannedSiteVisit(lead) {
+
+  const siteVisit = getNormalizedSiteVisitFilterValue(lead);
+
+  return Boolean(siteVisit) && !["unknown", "pending", "later"].includes(siteVisit);
+}
+
+function getLeadSummaryMetrics(leads) {
+
+  const total = leads.length;
+  const metrics = leads.reduce((result, lead) => {
+    const status = getDashboardLeadStatus(lead);
+
+    if (status === "HOT") {
+      result.hot += 1;
+    }
+    else if (status === "WARM") {
+      result.warm += 1;
+    }
+    else if (status === "COLD") {
+      result.cold += 1;
+    }
+
+    if (hasPlannedSiteVisit(lead)) {
+      result.siteVisitPlanned += 1;
+    }
+
+    return result;
+  }, {
+    hot: 0,
+    warm: 0,
+    cold: 0,
+    siteVisitPlanned: 0
+  });
+
+  return {
+    total,
+    ...metrics,
+    conversionRate: total ? Math.round((metrics.hot / total) * 100) : 0
+  };
+}
+
+function renderSummaryCards() {
+
+  const metrics = getLeadSummaryMetrics(allLeads);
+
+  document.getElementById("total").textContent = metrics.total;
+  document.getElementById("hot").textContent = metrics.hot;
+  document.getElementById("warm").textContent = metrics.warm;
+  document.getElementById("cold").textContent = metrics.cold;
+  document.getElementById("siteVisitPlanned").textContent = metrics.siteVisitPlanned;
+  document.getElementById("conversionRate").textContent = `${metrics.conversionRate}%`;
+}
+
 function leadMatchesFilters(lead) {
 
   const leadStatus = document.getElementById("leadStatusFilter").value;
   const callStatus = document.getElementById("callStatusFilter").value;
   const siteVisit = document.getElementById("siteVisitFilter").value;
+  const crmStatus = document.getElementById("crmStatusFilter").value;
 
   if (leadStatus !== "all" && getDashboardLeadStatus(lead) !== leadStatus) {
     return false;
@@ -723,6 +1699,10 @@ function leadMatchesFilters(lead) {
   }
 
   if (siteVisit !== "all" && getNormalizedSiteVisitFilterValue(lead) !== siteVisit) {
+    return false;
+  }
+
+  if (crmStatus !== "all" && getLeadCrmStatus(lead) !== crmStatus) {
     return false;
   }
 
@@ -746,6 +1726,64 @@ function renderStructuredFields(lead, call) {
       <div class="call-field"><b>Funding status</b><br>${escapeHtml(fields.funding)}</div>
       <div class="call-field"><b>Site visit plan</b><br>${escapeHtml(fields.siteVisit)}</div>
       <div class="call-field"><b>Lead status</b><br>${escapeHtml(getDashboardLeadStatus(lead))}</div>
+    </div>
+  `;
+}
+
+function renderCallIntelligence(call) {
+
+  const analysis = getCallAnalysis({ outboundCall: call });
+
+  if (
+    !analysis.summary &&
+    !analysis.sentiment &&
+    typeof analysis.leadScore !== "number" &&
+    !analysis.nextAction
+  ) {
+    return "";
+  }
+
+  const generatedAt = analysis.analyzedAt
+    ? new Date(analysis.analyzedAt).toLocaleString()
+    : "Pending";
+
+  return `
+    <div class="lead-intelligence">
+      <b>AI Call Intelligence</b><br>
+      Summary: ${escapeHtml(analysis.summary || "Pending")}<br>
+      Sentiment: ${escapeHtml(analysis.sentiment || "Pending")}<br>
+      Lead score: ${escapeHtml(typeof analysis.leadScore === "number" ? analysis.leadScore : "Pending")}/100<br>
+      Suggested next action: ${escapeHtml(analysis.nextAction || "Pending")}<br>
+      Generated: ${escapeHtml(generatedAt)}
+      ${call.aiError ? `<br>AI fallback: ${escapeHtml(call.aiError)}` : ""}
+    </div>
+  `;
+}
+
+function renderCallAnalysisColumns(lead) {
+
+  const analysis = getCallAnalysis(lead);
+  const score = typeof analysis.leadScore === "number" ? analysis.leadScore : 0;
+  const sentiment = analysis.sentiment || "Neutral";
+
+  return `
+    <div class="call-analysis-grid">
+      <div class="call-analysis-column">
+        <span class="call-analysis-label">Lead Score</span>
+        <span class="analysis-badge analysis-${getLeadScoreColor(score)}">${escapeHtml(score)}/100</span>
+      </div>
+      <div class="call-analysis-column">
+        <span class="call-analysis-label">Sentiment</span>
+        <span class="analysis-badge analysis-${getSentimentColor(sentiment)}">${escapeHtml(sentiment)}</span>
+      </div>
+      <div class="call-analysis-column">
+        <span class="call-analysis-label">AI Summary</span>
+        ${escapeHtml(analysis.summary || "Pending")}
+      </div>
+      <div class="call-analysis-column">
+        <span class="call-analysis-label">Suggested Action</span>
+        ${escapeHtml(analysis.nextAction || "Pending")}
+      </div>
     </div>
   `;
 }
@@ -782,18 +1820,21 @@ function renderValidationErrors(call) {
 function renderTranscript(call) {
 
   const transcript = call.transcript || [];
+  const fullTranscript = call.fullTranscript || "";
 
-  if (!transcript.length) {
+  if (!transcript.length && !fullTranscript) {
     return "";
   }
 
-  const lines = transcript.map((item) => {
-    const details = item.question
-      ? ` | Question: ${item.question} | Raw: ${displayPendingValue(item.rawAnswer || item.text)} | Normalized: ${displayPendingValue(item.normalizedAnswer)} | Valid: ${item.valid === true ? "yes" : "no"} | Correction attempts: ${item.retryCount || 0}`
-      : "";
+  const lines = fullTranscript
+    ? fullTranscript.split("\n")
+    : transcript.map((item) => {
+      const details = item.question
+        ? ` | Question: ${item.question} | Raw: ${displayPendingValue(item.rawAnswer || item.text)} | Normalized: ${displayPendingValue(item.normalizedAnswer)} | Valid: ${item.valid === true ? "yes" : "no"} | Correction attempts: ${item.retryCount || 0}`
+        : "";
 
-    return `${item.speaker || "unknown"}: ${item.text || ""}${details}`;
-  });
+      return `${item.speaker || "unknown"}: ${item.text || ""}${details}`;
+    });
 
   return `
     <div class="call-transcript">
@@ -955,6 +1996,78 @@ function renderWhatsAppAction(lead) {
   `;
 }
 
+function getLeadCrmStatus(lead) {
+
+  return lead.crmExport && lead.crmExport.sent ? "sent" : "pending";
+}
+
+function renderCrmStatus(lead) {
+
+  const crmExport = lead.crmExport || {};
+  const sent = getLeadCrmStatus(lead) === "sent";
+  const exportedAt = crmExport.exportedAt
+    ? ` · ${new Date(crmExport.exportedAt).toLocaleString()}`
+    : "";
+
+  return `
+    <span class="crm-status ${sent ? "sent" : ""}">
+      ${sent ? "Sent to CRM" : "CRM Pending"}${escapeHtml(exportedAt)}
+    </span>
+  `;
+}
+
+function renderCrmAction(lead) {
+
+  const leadId = lead._id || lead.id || "";
+  const sent = getLeadCrmStatus(lead) === "sent";
+
+  if (!leadId) {
+    return "";
+  }
+
+  return `
+    <div class="lead-actions">
+      <button class="crm-export-button" type="button" data-action="send-crm" data-lead-id="${escapeHtml(leadId)}" ${sent ? "disabled" : ""}>
+        ${sent ? "Sent to CRM" : "Send to CRM"}
+      </button>
+    </div>
+  `;
+}
+
+function renderTranscriptAction(lead) {
+
+  const leadId = lead._id || lead.id || "";
+
+  if (!leadId) {
+    return "";
+  }
+
+  return `
+    <div class="lead-actions">
+      <button class="view-transcript-button" type="button" data-action="view-transcript" data-lead-id="${escapeHtml(leadId)}">
+        View Transcript
+      </button>
+    </div>
+  `;
+}
+
+function renderRecommendationsAction(lead) {
+
+  const leadId = lead._id || lead.id || "";
+
+  if (!leadId) {
+    return "";
+  }
+
+  return `
+    <div class="lead-actions">
+      <button class="recommendations-button" type="button" data-action="view-recommendations" data-lead-id="${escapeHtml(leadId)}">
+        View Recommendations
+      </button>
+    </div>
+  `;
+}
+
 function renderOutboundCall(lead) {
 
   const call = lead.outboundCall;
@@ -985,12 +2098,16 @@ function renderOutboundCall(lead) {
       ${renderRetryMetadata(call)}
       ${renderAttemptHistory(call)}
       ${renderStructuredFields(lead, call)}
-      ${call.summary ? `Summary: ${escapeHtml(call.summary)}<br>` : ""}
+      ${renderCallIntelligence(call)}
       ${answers ? `<br>${answers}` : ""}
       ${renderValidationErrors(call)}
       ${renderTranscript(call)}
       ${call.error ? `Error: ${escapeHtml(call.error)}` : ""}
       ${renderWhatsAppStatus(lead)}
+      ${renderCrmStatus(lead)}
+      ${renderTranscriptAction(lead)}
+      ${renderRecommendationsAction(lead)}
+      ${renderCrmAction(lead)}
       ${renderRetryCallAction(lead, call)}
       ${renderWhatsAppAction(lead)}
     </div>
@@ -1016,8 +2133,15 @@ function renderLead(lead, liveMatches = []) {
       Lead status: ${renderLeadStatusBadge(getDashboardLeadStatus(lead))}${renderLeadScore(lead)}<br>
 
       ⏰ ${escapeHtml(lead.timeline)}<br>
+      ${renderCrmStatus(lead)}<br>
+
+      ${renderCallAnalysisColumns(lead)}
 
       ${renderLeadIntelligence(lead)}
+
+      ${!lead.outboundCall || !lead.outboundCall.status ? renderTranscriptAction(lead) : ""}
+      ${!lead.outboundCall || !lead.outboundCall.status ? renderRecommendationsAction(lead) : ""}
+      ${!lead.outboundCall || !lead.outboundCall.status ? renderCrmAction(lead) : ""}
 
       ${renderOutboundCall(lead)}
 
@@ -1066,6 +2190,7 @@ function prependLead(lead, matches = []) {
     allLeads.unshift(nextLead);
   }
 
+  renderSummaryCards();
   renderFilteredLeads();
 }
 
@@ -1093,8 +2218,33 @@ async function handleLeadActionClick(event) {
     return;
   }
 
+  if (button.getAttribute("data-action") === "view-transcript") {
+    const lead = findLeadById(leadId);
+
+    if (lead) {
+      openTranscriptModal(lead);
+    }
+
+    return;
+  }
+
+  if (button.getAttribute("data-action") === "view-recommendations") {
+    const lead = findLeadById(leadId);
+
+    if (lead) {
+      openRecommendationsModal(lead);
+    }
+
+    return;
+  }
+
   if (button.getAttribute("data-action") === "whatsapp-followup") {
     await sendManualWhatsAppFollowup(button, leadId);
+    return;
+  }
+
+  if (button.getAttribute("data-action") === "send-crm") {
+    await sendLeadToCrm(button, leadId);
     return;
   }
 
@@ -1131,6 +2281,41 @@ async function handleLeadActionClick(event) {
     showDashboardMessage(message, "error");
     button.disabled = false;
     button.textContent = "Retry Call";
+  }
+}
+
+async function sendLeadToCrm(button, leadId) {
+
+  button.disabled = true;
+  button.textContent = "Sending...";
+  showDashboardMessage("", "");
+
+  try {
+    const res = await fetch(`/builders/${builder}/leads/${leadId}/send-crm`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        crmName: "Demo CRM"
+      })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.message || "CRM export failed");
+    }
+
+    if (data.lead) {
+      prependLead(data.lead, []);
+    }
+
+    showDashboardMessage("Sent to CRM.", "success");
+  }
+  catch (err) {
+    showDashboardMessage("CRM export failed.", "error");
+    button.disabled = false;
+    button.textContent = "Send to CRM";
   }
 }
 
@@ -1206,14 +2391,21 @@ function exportFilteredLeadsCsv() {
     "Funding status",
     "Site visit plan",
     "Lead status",
+    "Lead score",
     "Call status",
-    "Summary",
+    "AI summary",
+    "Sentiment",
+    "Suggested next action",
+    "Full transcript",
+    "CRM status",
+    "CRM exported at",
     "Validation errors",
     "Created date/time"
   ];
   const rows = getFilteredLeads().map((lead) => {
     const call = getLeadCall(lead);
     const fields = getCallFields(call);
+    const analysis = getCallAnalysis(lead);
 
     return [
       lead.name,
@@ -1225,8 +2417,14 @@ function exportFilteredLeadsCsv() {
       fields.funding,
       fields.siteVisit,
       getDashboardLeadStatus(lead),
+      typeof analysis.leadScore === "number" ? analysis.leadScore : lead.score,
       getLeadCallStatus(lead),
-      call.summary,
+      analysis.summary,
+      analysis.sentiment,
+      analysis.nextAction,
+      analysis.transcript || call.fullTranscript,
+      getLeadCrmStatus(lead) === "sent" ? "Sent to CRM" : "CRM Pending",
+      lead.crmExport && lead.crmExport.exportedAt ? new Date(lead.crmExport.exportedAt).toLocaleString() : "",
       validationErrorsForCsv(call),
       lead.createdAt ? new Date(lead.createdAt).toLocaleString() : ""
     ];
@@ -1257,11 +2455,6 @@ async function loadAnalytics() {
 }
 
 function renderAnalytics(data) {
-
-  document.getElementById("total").innerHTML = data.total;
-  document.getElementById("hot").innerHTML = data.hot;
-  document.getElementById("warm").innerHTML = data.warm;
-  document.getElementById("cold").innerHTML = data.cold;
 
   const chartData = [data.hot, data.warm, data.cold];
 

@@ -24,6 +24,8 @@ const twilioVoiceFrom =
   process.env.TWILIO_VOICE_FROM || process.env.TWILIO_PHONE_NUMBER;
 const twilioWhatsAppFrom =
   process.env.TWILIO_WHATSAPP_FROM || "whatsapp:+14155238886";
+const openAiApiKey = process.env.OPENAI_API_KEY;
+const openAiModel = process.env.OPENAI_MODEL || "gpt-5-mini";
 
 const client = twilio(accountSid, authToken);
 
@@ -186,6 +188,9 @@ const LeadSchema = new mongoose.Schema({
   budget: String,
   timeline: String,
   text: String,
+  summary: String,
+  notes: String,
+  finalSummary: String,
   score: Number,
   status: String,
   source: String,
@@ -226,12 +231,20 @@ const LeadSchema = new mongoose.Schema({
       retryCount: Number,
       answeredAt: Date
     }],
+    capturedAnswers: mongoose.Schema.Types.Mixed,
     structuredFields: {
       type: Object,
       default: {}
     },
     validationErrors: [String],
     summary: String,
+    aiSummary: String,
+    sentiment: String,
+    leadScore: Number,
+    suggestedNextAction: String,
+    fullTranscript: String,
+    aiGeneratedAt: Date,
+    aiError: String,
     currentAttemptNumber: Number,
     retry_count: Number,
     next_retry_time: Date,
@@ -256,6 +269,32 @@ const LeadSchema = new mongoose.Schema({
       }
     }]
   },
+  callAnalysis: {
+    transcript: {
+      type: String,
+      default: ""
+    },
+    summary: {
+      type: String,
+      default: ""
+    },
+    sentiment: {
+      type: String,
+      enum: ["Interested", "Neutral", "Not Interested"],
+      default: "Neutral"
+    },
+    leadScore: {
+      type: Number,
+      default: 0
+    },
+    nextAction: {
+      type: String,
+      default: ""
+    },
+    analyzedAt: {
+      type: Date
+    }
+  },
   whatsapp_followup: {
     sent: Boolean,
     status: String,
@@ -264,6 +303,19 @@ const LeadSchema = new mongoose.Schema({
     timestamp: Date,
     twilio_sid: String,
     error: String
+  },
+  crmExport: {
+    sent: {
+      type: Boolean,
+      default: false
+    },
+    status: {
+      type: String,
+      default: "pending"
+    },
+    exportedAt: Date,
+    crmName: String,
+    externalId: String
   },
   matchedProperties: [{
     property: {
@@ -574,38 +626,50 @@ io.on("connection", (socket) => {
 // =========================
 function calculateLeadScore(data) {
 
-  let score = 50;
+  const fields = data.fields || {};
+  const text = [
+    data.transcript,
+    data.summary,
+    data.originalRequirement,
+    fields.purpose,
+    fields.configuration,
+    fields.budget,
+    fields.funding,
+    fields.fundingStatus,
+    fields.siteVisit,
+    data.timeline
+  ].join(" ").toLowerCase();
+  let score = 0;
 
-  if (data.budget.includes("1 Cr")) {
+  if (hasBudgetMatch(data)) {
     score += 25;
   }
 
-  if (data.timeline === "Immediate") {
+  if (hasQualifiedValue(fields.purpose)) {
+    score += fields.purpose === "investment" ? 10 : 8;
+  }
+
+  if (hasQualifiedValue(fields.configuration)) {
+    score += 8;
+  }
+
+  if (/\bself\s*(funded|funding|finance|financed)\b/.test(text) || text.includes("own funds") || text.includes("cash")) {
+    score += 20;
+  }
+
+  if (hasSiteVisitPlanned(text)) {
     score += 25;
   }
 
-  if (data.timeline === "1 Month") {
-    score += 15;
+  if (hasImmediateTimeline(text)) {
+    score += 20;
   }
 
-  const text = (data.text || "").toLowerCase();
-
-  if (
-    text.includes("urgent") ||
-    text.includes("ready") ||
-    text.includes("finalize")
-  ) {
+  if (data.sentiment === "Interested") {
     score += 10;
   }
 
-  if (score > 100) {
-    score = 100;
-  }
-
-  return {
-    score,
-    status: getStatusFromScore(score)
-  };
+  return Math.min(100, Math.max(0, score));
 }
 
 function generateLeadIntelligence(data, score) {
@@ -668,6 +732,15 @@ function generateLeadIntelligence(data, score) {
 
 function getBudgetRange(budget) {
 
+  const amount = extractBudgetAmount(budget);
+
+  if (amount) {
+    return {
+      min: 0,
+      max: amount
+    };
+  }
+
   if (budget === "50-80 lakh") {
     return {
       min: 5000000,
@@ -699,27 +772,47 @@ function inferBhk(text) {
 
   const normalized = (text || "").toLowerCase();
 
-  const match = normalized.match(/([1-5])\s*(bhk|bed|bedroom)/);
+  const match = normalized.match(/([1-5])\s*(bhk|b h k|bed|bedroom)/);
 
   return match ? Number(match[1]) : null;
+}
+
+function getLeadRecommendationFields(lead) {
+
+  const fields = (lead.outboundCall && lead.outboundCall.structuredFields) || {};
+
+  return {
+    purpose: fields.purpose || "",
+    configuration: fields.configuration || "",
+    budget: fields.budget || lead.budget || "",
+    location: lead.location || "",
+    text: [
+      lead.text,
+      fields.purpose,
+      fields.configuration,
+      fields.budget
+    ].filter(Boolean).join(" ")
+  };
 }
 
 function scorePropertyMatch(lead, property) {
 
   let score = 0;
   const reasons = [];
-  const budgetRange = getBudgetRange(lead.budget);
-  const requestedBhk = inferBhk(lead.text);
-  const normalizedText = (lead.text || "").toLowerCase();
+  const recommendationFields = getLeadRecommendationFields(lead);
+  const budgetRange = getBudgetRange(recommendationFields.budget);
+  const requestedBhk = inferBhk(recommendationFields.configuration || recommendationFields.text);
+  const normalizedText = recommendationFields.text.toLowerCase();
+  const purpose = String(recommendationFields.purpose || "").toLowerCase();
 
-  if (property.location === lead.location) {
+  if (property.location === recommendationFields.location) {
     score += 35;
     reasons.push(`Location match in ${property.location}`);
   }
 
   if (property.price >= budgetRange.min && property.price <= budgetRange.max) {
     score += 30;
-    reasons.push(`Fits ${lead.budget} budget`);
+    reasons.push(`Fits ${recommendationFields.budget} budget`);
   }
   else if (property.price <= budgetRange.max * 1.15) {
     score += 12;
@@ -736,8 +829,17 @@ function scorePropertyMatch(lead, property) {
   }
 
   if (requestedBhk && property.bhk === requestedBhk) {
-    score += 10;
+    score += 20;
     reasons.push(`${property.bhk}BHK requirement match`);
+  }
+
+  if (purpose.includes("investment")) {
+    score += 8;
+    reasons.push("Matches investment buying purpose");
+  }
+  else if (purpose.includes("self") || purpose.includes("family")) {
+    score += 8;
+    reasons.push("Matches self-use buying purpose");
   }
 
   if (
@@ -922,6 +1024,234 @@ function appendAnswerTranscript(lead, question, rawAnswer, normalizedAnswer, val
     validationStatus: valid ? "valid" : "invalid",
     retryCount
   });
+}
+
+function buildFullTranscript(lead) {
+
+  const transcript = lead.outboundCall && Array.isArray(lead.outboundCall.transcript)
+    ? lead.outboundCall.transcript
+    : [];
+
+  return transcript
+    .map((item) => {
+      const speaker = item.speaker || "unknown";
+      const text = item.text || item.rawAnswer || "";
+      const details = item.question
+        ? ` | Question: ${item.question} | Raw: ${item.rawAnswer || text || "Unknown"} | Normalized: ${item.normalizedAnswer || "Unknown"} | Valid: ${item.valid === true ? "yes" : "no"} | Correction attempts: ${item.retryCount || 0}`
+        : "";
+
+      return `${speaker}: ${text}${details}`;
+    })
+    .join("\n");
+}
+
+function hasTranscriptText(value) {
+
+  const text = String(value || "").trim();
+
+  return Boolean(text) && text !== "Call transcript is not available yet.";
+}
+
+function formatSpeakerLabel(speaker) {
+
+  const normalized = String(speaker || "").trim().toLowerCase();
+
+  if (["ai", "assistant", "agent", "system"].includes(normalized)) {
+    return "AI";
+  }
+
+  if (["customer", "lead", "user", "caller"].includes(normalized)) {
+    return "Customer";
+  }
+
+  return normalized
+    ? normalized.charAt(0).toUpperCase() + normalized.slice(1)
+    : "Unknown";
+}
+
+function getQuestionText(questionOrKey) {
+
+  const value = String(questionOrKey || "").trim();
+
+  if (!value) {
+    return "";
+  }
+
+  const normalized = value.toLowerCase();
+  const question = qualificationQuestions.find((item) => {
+    return item.key.toLowerCase() === normalized ||
+      item.label.toLowerCase() === normalized;
+  });
+
+  if (question) {
+    return question.prompt;
+  }
+
+  return value;
+}
+
+function formatTranscriptEntries(entries) {
+
+  if (!Array.isArray(entries) || !entries.length) {
+    return "";
+  }
+
+  const questionAnswerEntries = entries.filter((item) => {
+    if (!item || typeof item !== "object") {
+      return false;
+    }
+
+    const question = getQuestionText(item.question || item.key || item.field || item.label);
+    const answer = item.normalizedAnswer || item.answer || item.rawAnswer || item.value || item.text;
+
+    return question && hasTranscriptText(answer);
+  });
+  const sourceEntries = questionAnswerEntries.length ? questionAnswerEntries : entries;
+  const lines = [];
+
+  sourceEntries.forEach((item) => {
+    if (!item) {
+      return;
+    }
+
+    if (typeof item === "string") {
+      if (hasTranscriptText(item)) {
+        lines.push(item.trim());
+      }
+      return;
+    }
+
+    const question = getQuestionText(item.question || item.key || item.field || item.label);
+    const answer = item.normalizedAnswer || item.answer || item.rawAnswer || item.value || item.text;
+
+    if (question && hasTranscriptText(answer)) {
+      lines.push(`AI: ${question}`);
+      lines.push(`Customer: ${answer}`);
+      return;
+    }
+
+    const text = item.text || item.rawAnswer || item.answer || item.value;
+
+    if (hasTranscriptText(text)) {
+      lines.push(`${formatSpeakerLabel(item.speaker)}: ${text}`);
+    }
+  });
+
+  return lines.join("\n\n");
+}
+
+function formatCapturedAnswers(capturedAnswers) {
+
+  if (!capturedAnswers) {
+    return "";
+  }
+
+  if (Array.isArray(capturedAnswers)) {
+    return formatTranscriptEntries(capturedAnswers);
+  }
+
+  if (typeof capturedAnswers === "string") {
+    return capturedAnswers.trim();
+  }
+
+  if (typeof capturedAnswers !== "object") {
+    return "";
+  }
+
+  return formatTranscriptEntries(
+    Object.entries(capturedAnswers).map(([key, value]) => {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        return {
+          key,
+          ...value
+        };
+      }
+
+      return {
+        key,
+        value
+      };
+    })
+  );
+}
+
+function formatStructuredFields(fields) {
+
+  const fieldMap = [
+    ["purpose", "purpose"],
+    ["configuration", "configuration"],
+    ["budget", "budget"],
+    ["fundingStatus", "fundingStatus"],
+    ["funding", "fundingStatus"],
+    ["budgetReadiness", "fundingStatus"],
+    ["siteVisit", "siteVisit"]
+  ];
+  const entries = [];
+  const seen = new Set();
+
+  fieldMap.forEach(([fieldKey, questionKey]) => {
+    if (seen.has(questionKey) || !fields || !hasQualifiedValue(fields[fieldKey])) {
+      return;
+    }
+
+    seen.add(questionKey);
+    entries.push({
+      key: questionKey,
+      value: fields[fieldKey]
+    });
+  });
+
+  return formatTranscriptEntries(entries);
+}
+
+function buildTranscriptFromLead(lead) {
+
+  const callAnalysisTranscript = lead.callAnalysis && lead.callAnalysis.transcript;
+
+  if (hasTranscriptText(callAnalysisTranscript)) {
+    return String(callAnalysisTranscript).trim();
+  }
+
+  const call = lead.outboundCall || {};
+  const outboundTranscript = Array.isArray(call.transcript)
+    ? formatTranscriptEntries(call.transcript)
+    : call.transcript;
+
+  if (hasTranscriptText(outboundTranscript)) {
+    return String(outboundTranscript).trim();
+  }
+
+  if (hasTranscriptText(call.fullTranscript)) {
+    return String(call.fullTranscript).trim();
+  }
+
+  const capturedTranscript = formatCapturedAnswers(call.capturedAnswers || call.answers);
+
+  if (hasTranscriptText(capturedTranscript)) {
+    return capturedTranscript.trim();
+  }
+
+  const structuredTranscript = formatStructuredFields(call.structuredFields);
+
+  if (hasTranscriptText(structuredTranscript)) {
+    return structuredTranscript.trim();
+  }
+
+  return [
+    call.aiSummary,
+    call.summary,
+    call.finalSummary,
+    lead.finalSummary,
+    lead.summary,
+    lead.notes,
+    Array.isArray(call.validationErrors) && call.validationErrors.length
+      ? `Validation results: ${call.validationErrors.join("; ")}`
+      : "",
+    lead.text
+  ]
+    .filter(hasTranscriptText)
+    .join("\n\n")
+    .trim();
 }
 
 function normalizeCallText(value) {
@@ -1276,31 +1606,61 @@ function updateStructuredQualification(lead) {
 function calculateCallLeadScore(lead) {
 
   const qualifiedStatus = calculateLeadStatus(lead);
+  const fields = (lead.outboundCall && lead.outboundCall.structuredFields) || {};
+  const fieldValues = [
+    fields.purpose,
+    fields.configuration,
+    fields.budget,
+    fields.funding || fields.fundingStatus,
+    fields.siteVisit
+  ];
+  const validCount = fieldValues.filter(hasQualifiedValue).length;
+  let score = validCount * 12;
 
   if (qualifiedStatus === "PENDING") {
     return {
-      score: lead.score || 0,
+      score: Math.min(100, Math.max(0, lead.score || score || 0)),
       status: "PENDING"
     };
   }
 
   if (qualifiedStatus === "COLD") {
     return {
-      score: 40,
+      score: Math.min(40, Math.max(0, score || 40)),
       status: "COLD"
     };
   }
 
+  if (hasQualifiedValue(fields.purpose)) {
+    score += fields.purpose === "investment" ? 10 : 8;
+  }
+
+  if (hasQualifiedValue(fields.configuration)) {
+    score += 8;
+  }
+
+  if (hasQualifiedValue(fields.budget)) {
+    score += 10;
+  }
+
+  if (["loan approved", "self funding", "partly ready"].includes(String(fields.funding || fields.fundingStatus || "").toLowerCase())) {
+    score += 12;
+  }
+
+  if (["today", "tomorrow", "this weekend", "specific date"].includes(String(fields.siteVisit || "").toLowerCase())) {
+    score += 14;
+  }
+
   if (qualifiedStatus === "HOT") {
     return {
-      score: 90,
+      score: Math.min(100, Math.max(85, score)),
       status: "HOT"
     };
   }
 
   if (qualifiedStatus === "WARM") {
     return {
-      score: 70,
+      score: Math.min(84, Math.max(55, score)),
       status: "WARM"
     };
   }
@@ -1317,7 +1677,428 @@ function buildQualificationSummary(lead) {
     getCallStructuredFields(lead);
   const status = getPlainLeadStatus(lead.status);
 
-  return `${lead.name || "Unknown"} is a ${status} lead for ${lead.location || "Unknown"}. Purpose: ${displayStructuredValue(fields.purpose)}. Configuration: ${displayStructuredValue(fields.configuration)}. Budget: ${displayStructuredValue(fields.budget)}. Funding: ${displayStructuredValue(fields.funding)}. Site visit: ${displayStructuredValue(fields.siteVisit)}.`;
+  return `${lead.name || "Unknown"} is a ${status} lead for ${lead.location || "Unknown"}. Purpose: ${displayStructuredValue(fields.purpose)}. Configuration: ${displayStructuredValue(fields.configuration)}. Budget: ${displayStructuredValue(fields.budget)}. Funding: ${displayStructuredValue(fields.funding || fields.fundingStatus)}. Site visit: ${displayStructuredValue(fields.siteVisit)}.`;
+}
+
+function extractBudgetAmount(value) {
+
+  const text = normalizeSpokenNumbers(normalizeCallText(value))
+    .replace(/\blac\b/g, "lakh")
+    .replace(/\blacs\b/g, "lakh")
+    .replace(/\blakhs\b/g, "lakh")
+    .replace(/\bcr\b/g, "crore")
+    .replace(/\bcrores\b/g, "crore");
+  const croreMatch = text.match(/(\d+(?:\.\d+)?)\s*(crore|cr)\b/);
+  const lakhMatch = text.match(/(\d+(?:\.\d+)?)\s*(lakh|lac)\b/);
+  const numericOnlyMatch = text.match(/\b(\d{7,})\b/);
+
+  if (croreMatch) {
+    return Number(croreMatch[1]) * 10000000;
+  }
+
+  if (lakhMatch) {
+    return Number(lakhMatch[1]) * 100000;
+  }
+
+  if (numericOnlyMatch) {
+    return Number(numericOnlyMatch[1]);
+  }
+
+  return 0;
+}
+
+function hasBudgetMatch(data) {
+
+  const selectedBudget = data.leadBudget || data.budget || "";
+  const callBudget = (data.fields && data.fields.budget) || data.callBudget || "";
+  const amount = extractBudgetAmount(callBudget || data.transcript || data.summary);
+
+  if (!selectedBudget && amount) {
+    return true;
+  }
+
+  if (!amount) {
+    return hasQualifiedValue(callBudget);
+  }
+
+  const range = getBudgetRange(selectedBudget);
+
+  return amount >= range.min && amount <= range.max;
+}
+
+function hasSiteVisitPlanned(text) {
+
+  return /\b(site visit|visit|today|tomorrow|weekend|saturday|sunday|specific date|book|schedule|planned)\b/.test(text) &&
+    !/\b(no visit|not visit|later|not now|cancel)\b/.test(text);
+}
+
+function hasImmediateTimeline(text) {
+
+  return /\b(immediate|today|tomorrow|weekend|urgent|asap|ready|this week|same day)\b/.test(text);
+}
+
+function getNextActionFromScore(score) {
+
+  if (score > 80) {
+    return "Schedule site visit";
+  }
+
+  if (score >= 50) {
+    return "Sales callback";
+  }
+
+  return "Share brochure and follow-up";
+}
+
+function mapLegacySentiment(sentiment) {
+
+  if (sentiment === "positive") {
+    return "Interested";
+  }
+
+  if (sentiment === "negative") {
+    return "Not Interested";
+  }
+
+  return ["Interested", "Neutral", "Not Interested"].includes(sentiment)
+    ? sentiment
+    : "Neutral";
+}
+
+function analyzeSentimentFromTranscript(transcript) {
+
+  const text = normalizeCallText(transcript);
+
+  if (
+    /\b(reject|not interested|no requirement|wrong number|do not call|budget mismatch|too expensive|not looking)\b/.test(text)
+  ) {
+    return "Not Interested";
+  }
+
+  if (
+    hasSiteVisitPlanned(text) ||
+    hasImmediateTimeline(text) ||
+    /\b(interested|yes|ready|self funding|own funds|loan approved|budget available|send details)\b/.test(text)
+  ) {
+    return "Interested";
+  }
+
+  return "Neutral";
+}
+
+function fallbackTranscriptSummary(transcript) {
+
+  const cleanTranscript = String(transcript || "").replace(/\s+/g, " ").trim();
+
+  if (!cleanTranscript) {
+    return "Call transcript is not available yet.";
+  }
+
+  return cleanTranscript.length > 240
+    ? `${cleanTranscript.slice(0, 237)}...`
+    : cleanTranscript;
+}
+
+async function analyzeCallTranscript(transcript) {
+
+  const fallback = {
+    summary: fallbackTranscriptSummary(transcript),
+    sentiment: analyzeSentimentFromTranscript(transcript)
+  };
+
+  if (!openAiApiKey || !String(transcript || "").trim()) {
+    return fallback;
+  }
+
+  const payload = {
+    model: openAiModel,
+    input: `Transcript:\n${transcript}`,
+    instructions: "Analyze this real estate qualification call. Return concise JSON only. Summary must be one sentence. Sentiment must follow these exact labels: Interested, Neutral, Not Interested. Interested means site visit planned, positive response, immediate timeline, or budget available. Neutral means gathering information or uncertain response. Not Interested means rejected call, no requirement, or budget mismatch.",
+    text: {
+      format: {
+        type: "json_schema",
+        name: "call_transcript_analysis",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            summary: {
+              type: "string"
+            },
+            sentiment: {
+              type: "string",
+              enum: ["Interested", "Neutral", "Not Interested"]
+            }
+          },
+          required: ["summary", "sentiment"]
+        }
+      }
+    }
+  };
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI ${response.status}: ${errorText.slice(0, 250)}`);
+    }
+
+    const data = await response.json();
+    const parsed = parseJsonObject(extractResponseText(data));
+
+    if (!parsed) {
+      throw new Error("OpenAI returned non-JSON call analysis");
+    }
+
+    return {
+      summary: String(parsed.summary || fallback.summary).trim(),
+      sentiment: ["Interested", "Neutral", "Not Interested"].includes(parsed.sentiment)
+        ? parsed.sentiment
+        : fallback.sentiment
+    };
+  }
+  catch (err) {
+    console.error("OpenAI transcript analysis failed:", err.message);
+    return fallback;
+  }
+}
+
+async function applyCallAnalysis(lead) {
+
+  lead.outboundCall = lead.outboundCall || {};
+  const transcript = buildTranscriptFromLead(lead);
+  const fields = lead.outboundCall.structuredFields || {};
+  const aiAnalysis = await analyzeCallTranscript(transcript);
+  const sentiment = aiAnalysis.sentiment || analyzeSentimentFromTranscript(transcript);
+  const leadScore = calculateLeadScore({
+    transcript,
+    summary: aiAnalysis.summary,
+    sentiment,
+    fields,
+    leadBudget: lead.budget,
+    originalRequirement: lead.text,
+    timeline: lead.timeline
+  });
+  const nextAction = getNextActionFromScore(leadScore);
+
+  lead.callAnalysis = {
+    transcript,
+    summary: aiAnalysis.summary,
+    sentiment,
+    leadScore,
+    nextAction,
+    analyzedAt: new Date()
+  };
+
+  return lead.callAnalysis;
+}
+
+function extractResponseText(data) {
+
+  if (!data) {
+    return "";
+  }
+
+  if (data.output_text) {
+    return data.output_text;
+  }
+
+  const output = Array.isArray(data.output) ? data.output : [];
+
+  for (const item of output) {
+    const content = Array.isArray(item.content) ? item.content : [];
+
+    for (const part of content) {
+      if (part.text) {
+        return part.text;
+      }
+    }
+  }
+
+  return "";
+}
+
+function parseJsonObject(value) {
+
+  try {
+    return JSON.parse(value);
+  }
+  catch (err) {
+    const match = String(value || "").match(/\{[\s\S]*\}/);
+
+    if (!match) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(match[0]);
+    }
+    catch (innerErr) {
+      return null;
+    }
+  }
+}
+
+function fallbackCallIntelligence(lead, callScore) {
+
+  const fields = (lead.outboundCall && lead.outboundCall.structuredFields) || {};
+  const status = getPlainLeadStatus(callScore.status || lead.status);
+  const leadScore = Math.min(100, Math.max(0, Number(callScore.score || lead.score || 0)));
+  const summary = buildQualificationSummary(lead);
+  const sentiment = status === "HOT" ? "positive" : status === "COLD" ? "negative" : "neutral";
+  const suggestedNextAction = status === "HOT"
+    ? `Call ${lead.name || "the lead"} now and confirm a site visit for ${displayStructuredValue(fields.siteVisit)}.`
+    : status === "WARM"
+      ? "Share matched inventory and schedule a sales follow-up."
+      : status === "COLD"
+        ? "Move to nurture flow unless the lead re-engages."
+        : "Retry call or send WhatsApp follow-up to complete qualification.";
+
+  return {
+    aiSummary: summary,
+    sentiment,
+    leadScore,
+    suggestedNextAction
+  };
+}
+
+async function generateOpenAiCallIntelligence(lead, callScore) {
+
+  const fallback = fallbackCallIntelligence(lead, callScore);
+
+  if (!openAiApiKey) {
+    return {
+      ...fallback,
+      aiError: "OPENAI_API_KEY not configured"
+    };
+  }
+
+  const fields = (lead.outboundCall && lead.outboundCall.structuredFields) || {};
+  const fullTranscript = buildFullTranscript(lead);
+  const payload = {
+    model: openAiModel,
+    input: `Lead: ${JSON.stringify({
+      name: lead.name,
+      phone: lead.phone,
+      location: lead.location,
+      budget: lead.budget,
+      timeline: lead.timeline,
+      originalRequirement: lead.text,
+      structuredFields: fields,
+      deterministicScore: callScore.score,
+      deterministicStatus: callScore.status,
+      transcript: fullTranscript
+    })}`,
+    instructions: "You analyze real estate qualification calls. Return concise JSON only. Use the transcript and structured fields. Lead score must be an integer from 0 to 100. Sentiment must be positive, neutral, or negative. Suggested next action must be concrete for a sales team.",
+    text: {
+      format: {
+        type: "json_schema",
+        name: "call_intelligence",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            aiSummary: {
+              type: "string"
+            },
+            sentiment: {
+              type: "string",
+              enum: ["positive", "neutral", "negative"]
+            },
+            leadScore: {
+              type: "integer",
+              minimum: 0,
+              maximum: 100
+            },
+            suggestedNextAction: {
+              type: "string"
+            }
+          },
+          required: ["aiSummary", "sentiment", "leadScore", "suggestedNextAction"]
+        }
+      }
+    }
+  };
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openAiApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI ${response.status}: ${errorText.slice(0, 250)}`);
+    }
+
+    const data = await response.json();
+    const parsed = parseJsonObject(extractResponseText(data));
+
+    if (!parsed) {
+      throw new Error("OpenAI returned non-JSON intelligence");
+    }
+
+    return {
+      aiSummary: String(parsed.aiSummary || fallback.aiSummary).trim(),
+      sentiment: ["positive", "neutral", "negative"].includes(parsed.sentiment)
+        ? parsed.sentiment
+        : fallback.sentiment,
+      leadScore: Math.min(100, Math.max(0, Number(parsed.leadScore || fallback.leadScore))),
+      suggestedNextAction: String(parsed.suggestedNextAction || fallback.suggestedNextAction).trim()
+    };
+  }
+  catch (err) {
+    console.error("OpenAI call intelligence failed:", err.message);
+
+    return {
+      ...fallback,
+      aiError: err.message
+    };
+  }
+}
+
+async function updateCallIntelligence(lead, callScore) {
+
+  lead.outboundCall = lead.outboundCall || {};
+  lead.outboundCall.fullTranscript = buildTranscriptFromLead(lead);
+
+  const callAnalysis = await applyCallAnalysis(lead);
+  const leadScore = Math.min(100, Math.max(0, Number(callAnalysis.leadScore || (callScore && callScore.score) || 0)));
+  const legacySentiment = callAnalysis.sentiment === "Interested"
+    ? "positive"
+    : callAnalysis.sentiment === "Not Interested"
+      ? "negative"
+      : "neutral";
+
+  lead.outboundCall.aiSummary = callAnalysis.summary;
+  lead.outboundCall.summary = callAnalysis.summary || buildQualificationSummary(lead);
+  lead.outboundCall.sentiment = legacySentiment;
+  lead.outboundCall.leadScore = leadScore;
+  lead.outboundCall.suggestedNextAction = callAnalysis.nextAction;
+  lead.outboundCall.fullTranscript = callAnalysis.transcript;
+  lead.outboundCall.aiGeneratedAt = callAnalysis.analyzedAt;
+  lead.outboundCall.aiError = undefined;
+  lead.score = leadScore;
+  lead.status = getStatusFromScore(leadScore);
+  lead.intelligence = {
+    ...(lead.intelligence || {}),
+    ...generateLeadIntelligence(lead, leadScore),
+    recommendedAction: callAnalysis.nextAction
+  };
 }
 
 function addQuestionGather(twiml, leadId, step, retryCount = 0, promptOverride = "") {
@@ -1838,6 +2619,56 @@ app.post("/builders/:builder/leads/:leadId/retry-call", async (req, res) => {
   });
 });
 
+app.post("/builders/:builder/leads/:leadId/send-crm", async (req, res) => {
+
+  const user = await findBuilder(req.params.builder);
+
+  if (!user) {
+    return res.status(404).send({
+      success: false,
+      message: "Builder not found"
+    });
+  }
+
+  const lead = await Lead.findOne({
+    _id: req.params.leadId,
+    builder: user.username
+  });
+
+  if (!lead) {
+    return res.status(404).send({
+      success: false,
+      message: "Lead not found"
+    });
+  }
+
+  lead.crmExport = {
+    sent: true,
+    status: "sent",
+    exportedAt: new Date(),
+    crmName: req.body.crmName || "Demo CRM",
+    externalId: `CRM-${String(lead._id).slice(-6).toUpperCase()}`
+  };
+
+  await lead.save();
+
+  const updatedLead = await Lead.findById(lead._id)
+    .populate("matchedProperties.property");
+  const responseLead = updatedLead ? updatedLead.toObject() : lead.toObject();
+
+  io.to(builderRoom(user.username)).emit("dashboard:update", {
+    lead: responseLead,
+    analytics: await getAnalyticsForBuilder(user.username),
+    matches: []
+  });
+
+  res.send({
+    success: true,
+    message: "Sent to CRM",
+    lead: responseLead
+  });
+});
+
 app.post("/api/leads/:id/whatsapp-followup", async (req, res) => {
 
   try {
@@ -1874,6 +2705,105 @@ app.post("/api/leads/:id/whatsapp-followup", async (req, res) => {
       "WhatsApp API error:",
       err
     );
+
+    return res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
+app.post("/api/leads/:id/analyze-call", async (req, res) => {
+
+  try {
+    const lead = await Lead.findById(req.params.id);
+
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        error: "Lead not found"
+      });
+    }
+
+    lead.outboundCall = lead.outboundCall || {};
+
+    if (req.body && typeof req.body.transcript === "string" && req.body.transcript.trim()) {
+      lead.outboundCall.fullTranscript = req.body.transcript.trim();
+      lead.outboundCall.transcript = req.body.transcript
+        .split(/\n+/)
+        .map((line) => {
+          const match = line.match(/^\s*([^:]+):\s*(.*)$/);
+
+          return {
+            speaker: match ? match[1].trim().toLowerCase() : "unknown",
+            text: match ? match[2].trim() : line.trim()
+          };
+        })
+        .filter((item) => item.text);
+      lead.callAnalysis = lead.callAnalysis || {};
+      lead.callAnalysis.transcript = req.body.transcript.trim();
+    }
+
+    updateStructuredQualification(lead);
+
+    if (
+      !Array.isArray(lead.outboundCall.transcript) ||
+      !lead.outboundCall.transcript.length
+    ) {
+      const existingTranscript = lead.outboundCall.fullTranscript ||
+        (lead.callAnalysis && lead.callAnalysis.transcript) ||
+        "";
+
+      if (existingTranscript) {
+        lead.outboundCall.transcript = existingTranscript
+          .split(/\n+/)
+          .map((line) => {
+            const match = line.match(/^\s*([^:]+):\s*(.*)$/);
+
+            return {
+              speaker: match ? match[1].trim().toLowerCase() : "unknown",
+              text: match ? match[2].trim() : line.trim()
+            };
+          })
+          .filter((item) => item.text);
+      }
+    }
+
+    lead.callAnalysis = lead.callAnalysis || {};
+
+    if (!hasTranscriptText(lead.callAnalysis.transcript)) {
+      lead.callAnalysis.transcript = buildTranscriptFromLead(lead);
+    }
+
+    await updateCallIntelligence(lead, calculateCallLeadScore(lead));
+    lead.markModified("outboundCall");
+    lead.markModified("callAnalysis");
+    normalizeLeadAttemptHistory(lead);
+    await lead.save();
+
+    const analysis = {
+      transcript: lead.callAnalysis.transcript,
+      summary: lead.callAnalysis.summary,
+      sentiment: lead.callAnalysis.sentiment,
+      leadScore: lead.callAnalysis.leadScore,
+      nextAction: lead.callAnalysis.nextAction
+    };
+    const updatedLead = await Lead.findById(lead._id)
+      .populate("matchedProperties.property");
+
+    io.to(builderRoom(lead.builder)).emit("dashboard:update", {
+      lead: updatedLead ? updatedLead.toObject() : lead.toObject(),
+      analytics: await getAnalyticsForBuilder(lead.builder),
+      matches: []
+    });
+
+    return res.json({
+      success: true,
+      analysis
+    });
+  }
+  catch (err) {
+    console.error("Call analysis API error:", err);
 
     return res.status(500).json({
       success: false,
@@ -2033,7 +2963,9 @@ app.post("/voice/hot-lead/:leadId/repeat", async (req, res) => {
         completedAt: lead.outboundCall.completedAt
       });
       appendCallTranscript(lead, "assistant", "Thank you. Hamari team aapki details review karke jaldi contact karegi.");
+      await updateCallIntelligence(lead, callScore);
       lead.markModified("outboundCall");
+      lead.markModified("callAnalysis");
       normalizeLeadAttemptHistory(lead);
       await lead.save();
       const updatedLead = await Lead.findById(lead._id)
@@ -2155,7 +3087,9 @@ app.post("/voice/hot-lead/:leadId/answer", async (req, res) => {
       completedAt: lead.outboundCall.completedAt
     });
     appendCallTranscript(lead, "assistant", "Thank you. Hamari team aapki details review karke jaldi contact karegi.");
+    await updateCallIntelligence(lead, callScore);
     lead.markModified("outboundCall");
+    lead.markModified("callAnalysis");
     normalizeLeadAttemptHistory(lead);
     await lead.save();
     const updatedLead = await Lead.findById(lead._id)
@@ -2203,7 +3137,19 @@ app.post("/voice/hot-lead/:leadId/status", async (req, res) => {
     updateNextRetryTime(lead);
     lead.status = calculateLeadStatus(lead);
 
+    if (
+      isCurrentCall &&
+      req.body.CallStatus === "completed" &&
+      Array.isArray(lead.outboundCall.transcript) &&
+      lead.outboundCall.transcript.length &&
+      !(lead.callAnalysis && lead.callAnalysis.analyzedAt)
+    ) {
+      updateStructuredQualification(lead);
+      await updateCallIntelligence(lead, calculateCallLeadScore(lead));
+    }
+
     lead.markModified("outboundCall");
+    lead.markModified("callAnalysis");
     normalizeLeadAttemptHistory(lead);
     await lead.save();
 
