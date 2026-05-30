@@ -955,7 +955,7 @@ function renderLeadMatches(lead, liveMatches) {
         <b>${escapeHtml(match.title)}</b>
         <span class="lead-match-score">${escapeHtml(match.matchScore)}%</span><br>
         ${escapeHtml(match.bhk)}BHK · ${escapeHtml(match.location)} · ${escapeHtml(match.budgetLabel)} · ${escapeHtml(match.possession)}<br>
-        ${match.reasons.map(escapeHtml).join(" · ")}
+        ${(Array.isArray(match.reasons) ? match.reasons : []).map(escapeHtml).join(" · ")}
       </div>
     `;
   });
@@ -1475,7 +1475,7 @@ function renderRecommendationCards(recommendations) {
               <span><b>Price</b><br>${escapeHtml(formatPropertyPrice(property))}</span>
             </div>
             <div class="recommendation-reason">
-              <b>Match reason:</b> ${match.reasons.map(escapeHtml).join(" · ")}
+              <b>Match reason:</b> ${(Array.isArray(match.reasons) ? match.reasons : []).map(escapeHtml).join(" · ")}
             </div>
           </div>
         `;

@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skyline Realty AI Admin</title>
+
+  <style>
+    :root {
+      --navy: #071a33;
+      --blue: #123b70;
+      --gold: #c79a2d;
+      --gold-soft: #fff7df;
+      --ink: #101827;
+      --muted: #667085;
+      --line: #e5eaf1;
+      --panel: #ffffff;
+      --soft: #f6f8fb;
+      --hot: #b42318;
+      --warm: #b54708;
+      --cold: #175cd3;
+      --success: #047857;
+      --shadow: 0 18px 45px rgba(7, 26, 51, 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--soft);
+      color: var(--ink);
+    }
+
+    .admin-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 268px minmax(0, 1fr);
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 24px 18px;
+      color: #ffffff;
+      background: linear-gradient(180deg, var(--navy), #0d2a4d);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 4px 4px 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      color: var(--navy);
+      background: linear-gradient(135deg, #f8df9b, var(--gold));
+      font-weight: 900;
+    }
+
+    .brand strong,
+    .brand span {
+      display: block;
+    }
+
+    .brand span {
+      margin-top: 4px;
+      color: #cbd7e6;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .nav {
+      display: grid;
+      gap: 8px;
+      margin-top: 24px;
+    }
+
+    .nav a {
+      padding: 12px 13px;
+      border-radius: 12px;
+      color: #dce7f5;
+      text-decoration: none;
+      font-weight: 800;
+    }
+
+    .nav a.active,
+    .nav a:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .main {
+      min-width: 0;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+      padding: 18px 28px;
+      background: rgba(255, 255, 255, 0.92);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(14px);
+    }
+
+    .topbar h1 {
+      margin: 0;
+      color: var(--navy);
+      font-size: 24px;
+      line-height: 1.2;
+    }
+
+    .topbar p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .content {
+      padding: 28px;
+    }
+
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .metric-card {
+      min-height: 132px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--panel);
+      box-shadow: 0 12px 30px rgba(7, 26, 51, 0.07);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      line-height: 1.35;
+    }
+
+    .metric-value {
+      color: var(--navy);
+      font-size: 34px;
+      line-height: 1;
+      font-weight: 900;
+    }
+
+    .metric-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+
+    .section-card {
+      margin-top: 24px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 20px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-header h2 {
+      margin: 0;
+      color: var(--navy);
+      font-size: 20px;
+    }
+
+    .section-header span {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    .upload-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: end;
+      padding: 20px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .upload-field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .upload-field label {
+      color: var(--navy);
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .upload-field input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 14px;
+      background: #ffffff;
+      font: inherit;
+    }
+
+    .upload-help {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    .upload-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .inventory-status {
+      padding: 0 22px 18px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1040px;
+    }
+
+    th,
+    td {
+      padding: 15px 16px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: #526277;
+      background: #f8fafc;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      font-weight: 900;
+    }
+
+    td {
+      color: #24364b;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .lead-name {
+      color: var(--navy);
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .subtext {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      padding: 6px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    .status-hot {
+      color: var(--hot);
+      background: #fff1f0;
+      border-color: #ffd1cc;
+    }
+
+    .status-warm {
+      color: var(--warm);
+      background: #fff7ed;
+      border-color: #fed7aa;
+    }
+
+    .status-cold {
+      color: var(--cold);
+      background: #eff6ff;
+      border-color: #bfdbfe;
+    }
+
+    .status-neutral {
+      color: var(--navy);
+      background: var(--gold-soft);
+      border-color: rgba(199, 154, 45, 0.26);
+    }
+
+    .crm-sent {
+      color: var(--success);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button,
+    .button {
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 900;
+      transition: transform 0.2s, opacity 0.2s;
+    }
+
+    button:hover,
+    .button:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+    }
+
+    .primary-btn,
+    .ghost-btn,
+    .gold-btn {
+      min-height: 38px;
+      padding: 9px 13px;
+      font-size: 13px;
+    }
+
+    .primary-btn {
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--navy), var(--blue));
+      box-shadow: 0 10px 22px rgba(7, 26, 51, 0.16);
+    }
+
+    .gold-btn {
+      color: var(--navy);
+      background: linear-gradient(135deg, #f8df9b, var(--gold));
+    }
+
+    .ghost-btn {
+      color: var(--navy);
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+    }
+
+    .empty-state {
+      padding: 34px;
+      color: var(--muted);
+      text-align: center;
+      font-weight: 800;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(7, 26, 51, 0.56);
+    }
+
+    .modal.open {
+      display: flex;
+    }
+
+    .modal-card {
+      width: min(780px, 100%);
+      max-height: 86vh;
+      overflow: hidden;
+      border-radius: 20px;
+      background: #ffffff;
+      box-shadow: 0 28px 70px rgba(7, 26, 51, 0.28);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 20px;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--navy), var(--blue));
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .modal-body {
+      padding: 20px;
+      overflow: auto;
+    }
+
+    .modal-close {
+      width: 34px;
+      height: 34px;
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.12);
+      font-size: 20px;
+    }
+
+    .transcript-entry,
+    .recommendation-card {
+      margin-bottom: 12px;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #f8fafc;
+      line-height: 1.55;
+    }
+
+    .recommendation-card strong {
+      color: var(--navy);
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    @media (max-width: 1180px) {
+      .analytics-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 840px) {
+      .admin-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+      }
+
+      .nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .topbar,
+      .section-header,
+      .upload-grid {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .content {
+        padding: 18px;
+      }
+
+      .top-actions,
+      .upload-actions {
+        width: 100%;
+      }
+
+      .top-actions button,
+      .upload-actions button {
+        flex: 1 1 160px;
+      }
+
+      .upload-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .analytics-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">AI</div>
+        <div>
+          <strong>Skyline Realty AI</strong>
+          <span>Builder Admin Panel</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="Admin navigation">
+        <a class="active" href="/admin">Admin Overview</a>
+        <a id="dashboardLink" href="/dashboard">Dashboard</a>
+        <a href="/">Customer Page</a>
+        <a href="#leadTable">Lead Pipeline</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1>Builder Admin Panel</h1>
+          <p id="builderLabel">Loading Skyline Realty AI workspace...</p>
+        </div>
+        <div class="top-actions">
+          <button class="ghost-btn" type="button" onclick="refreshAdminData()">Refresh</button>
+          <button class="gold-btn" type="button" onclick="downloadLeadsCsv()">Download CSV</button>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="analytics-grid" aria-label="Admin lead analytics">
+          <div class="metric-card">
+            <span class="metric-label">Total Leads</span>
+            <span class="metric-value" id="metricTotal">0</span>
+            <span class="metric-note">All captured customer inquiries</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">HOT Leads</span>
+            <span class="metric-value" id="metricHot">0</span>
+            <span class="metric-note">High purchase intent</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">WARM Leads</span>
+            <span class="metric-value" id="metricWarm">0</span>
+            <span class="metric-note">Follow-up ready prospects</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">COLD Leads</span>
+            <span class="metric-value" id="metricCold">0</span>
+            <span class="metric-note">Nurture with project updates</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Site Visits Planned</span>
+            <span class="metric-value" id="metricVisits">0</span>
+            <span class="metric-note">Visit intent from forms or calls</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">CRM Exported</span>
+            <span class="metric-value" id="metricCrm">0</span>
+            <span class="metric-note">Leads sent to CRM mock</span>
+          </div>
+        </div>
+
+        <section class="section-card" id="inventoryUpload">
+          <div class="section-header">
+            <div>
+              <h2>Upload Project Inventory</h2>
+              <span>CSV columns: projectName, location, configuration, price, possession, highlights</span>
+            </div>
+            <button class="ghost-btn" type="button" onclick="downloadSampleInventoryCsv()">Download Sample CSV</button>
+          </div>
+
+          <div class="upload-grid">
+            <div class="upload-field">
+              <label for="inventoryCsv">Project inventory CSV</label>
+              <input id="inventoryCsv" type="file" accept=".csv,text/csv">
+              <span class="upload-help">Uploaded inventory becomes the active recommendation inventory for this builder. If no upload exists, sample inventory remains active.</span>
+            </div>
+            <div class="upload-actions">
+              <button class="primary-btn" type="button" onclick="uploadInventoryCsv()">Upload Inventory</button>
+              <button class="ghost-btn" type="button" onclick="loadInventory()">Refresh Inventory</button>
+            </div>
+          </div>
+
+          <div class="inventory-status" id="inventoryStatus">Loading inventory...</div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Project Name</th>
+                  <th>Location</th>
+                  <th>Configuration</th>
+                  <th>Price</th>
+                  <th>Possession</th>
+                  <th>Highlights</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryRows"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="inventoryEmptyState" hidden>No uploaded inventory yet. Recommendations are using sample project inventory.</div>
+        </section>
+
+        <section class="section-card" id="brochureUpload">
+          <div class="section-header">
+            <div>
+              <h2>Project Brochures</h2>
+              <span>Upload a PDF brochure or attach an external brochure link to a project</span>
+            </div>
+          </div>
+
+          <div class="upload-grid">
+            <div class="upload-field">
+              <label for="brochureName">Brochure name</label>
+              <input id="brochureName" type="text" placeholder="Skyline Heights Brochure">
+            </div>
+            <div class="upload-field">
+              <label for="brochureProject">Project name</label>
+              <input id="brochureProject" type="text" placeholder="Skyline Heights">
+            </div>
+            <div class="upload-field">
+              <label for="brochureFile">PDF brochure</label>
+              <input id="brochureFile" type="file" accept="application/pdf,.pdf">
+              <span class="upload-help">For demo, PDF files are stored as browser-viewable data links.</span>
+            </div>
+            <div class="upload-field">
+              <label for="brochureLink">Or brochure link</label>
+              <input id="brochureLink" type="url" placeholder="https://example.com/brochure.pdf">
+            </div>
+            <div class="upload-actions">
+              <button class="primary-btn" type="button" onclick="saveBrochure()">Save Brochure</button>
+              <button class="ghost-btn" type="button" onclick="loadBrochures()">Refresh Brochures</button>
+            </div>
+          </div>
+
+          <div class="inventory-status" id="brochureStatus">Loading brochures...</div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Brochure Name</th>
+                  <th>Project Name</th>
+                  <th>Uploaded Date</th>
+                  <th>View</th>
+                </tr>
+              </thead>
+              <tbody id="brochureRows"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="brochureEmptyState" hidden>No brochures uploaded yet.</div>
+        </section>
+
+        <section class="section-card" id="leadTable">
+          <div class="section-header">
+            <div>
+              <h2>Lead Pipeline</h2>
+              <span>Qualification, site visit, CRM, transcript, and recommendations</span>
+            </div>
+            <span id="tableStatus">Loading leads...</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Phone</th>
+                  <th>Configuration</th>
+                  <th>Budget</th>
+                  <th>Lead Status</th>
+                  <th>Site Visit Plan</th>
+                  <th>CRM Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="leadRows"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="emptyState" hidden>No leads found for this builder.</div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal" id="adminModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalTitle">Lead Detail</h3>
+        <button class="modal-close" type="button" aria-label="Close modal" onclick="closeModal()">x</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const pathParts = window.location.pathname.split("/").filter(Boolean);
+    const builder = params.get("builder") || pathParts[1] || "builder1";
+    let leads = [];
+    let inventory = [];
+    let brochures = [];
+
+    document.getElementById("dashboardLink").href = `/dashboard/${encodeURIComponent(builder)}`;
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function normalizeStatus(status) {
+      const value = String(status || "PENDING").toUpperCase();
+      if (value.includes("HOT")) return "HOT";
+      if (value.includes("WARM")) return "WARM";
+      if (value.includes("COLD")) return "COLD";
+      return value;
+    }
+
+    function getStructuredFields(lead) {
+      return (lead.outboundCall && lead.outboundCall.structuredFields) || {};
+    }
+
+    function getConfiguration(lead) {
+      const fields = getStructuredFields(lead);
+      const source = fields.configuration || lead.text || "";
+      const match = String(source).match(/([1-5])\s*(bhk|b h k|bed|bedroom)/i);
+      return fields.configuration || (match ? `${match[1]} BHK` : "Not captured");
+    }
+
+    function getSiteVisitPlan(lead) {
+      const fields = getStructuredFields(lead);
+      const text = [
+        fields.siteVisit,
+        fields.site_visit,
+        lead.timeline,
+        lead.text
+      ].filter(Boolean).join(" ");
+
+      if (/today|tomorrow|weekend|next week|site visit|visit/i.test(text)) {
+        return fields.siteVisit || fields.site_visit || lead.timeline || "Requested";
+      }
+
+      return "Not planned";
+    }
+
+    function hasSiteVisit(lead) {
+      return getSiteVisitPlan(lead) !== "Not planned";
+    }
+
+    function getCrmStatus(lead) {
+      return lead.crmExport && lead.crmExport.sent
+        ? `Sent${lead.crmExport.crmName ? ` to ${lead.crmExport.crmName}` : ""}`
+        : "Pending";
+    }
+
+    function statusClass(status) {
+      const normalized = normalizeStatus(status);
+      if (normalized === "HOT") return "status-hot";
+      if (normalized === "WARM") return "status-warm";
+      if (normalized === "COLD") return "status-cold";
+      return "status-neutral";
+    }
+
+    async function loadAdminData() {
+      document.getElementById("tableStatus").textContent = "Loading leads...";
+
+      const [profileRes, analyticsRes, leadsRes, inventoryRes, brochureRes] = await Promise.all([
+        fetch(`/builders/${encodeURIComponent(builder)}`),
+        fetch(`/builders/${encodeURIComponent(builder)}/analytics`),
+        fetch(`/builders/${encodeURIComponent(builder)}/leads`),
+        fetch(`/builders/${encodeURIComponent(builder)}/inventory`),
+        fetch(`/builders/${encodeURIComponent(builder)}/brochures`)
+      ]);
+
+      const profile = await profileRes.json().catch(() => ({}));
+      const analytics = await analyticsRes.json().catch(() => ({}));
+      leads = await leadsRes.json().catch(() => []);
+      inventory = await inventoryRes.json().catch(() => []);
+      brochures = await brochureRes.json().catch(() => []);
+
+      document.getElementById("builderLabel").textContent =
+        `${profile.company || "Skyline Realty AI"} - ${builder}`;
+
+      renderMetrics(analytics);
+      renderLeadRows();
+      renderInventoryRows();
+      renderBrochureRows();
+    }
+
+    async function refreshAdminData() {
+      try {
+        await loadAdminData();
+      }
+      catch (err) {
+        document.getElementById("tableStatus").textContent = "Unable to refresh";
+        alert(err.message || "Unable to refresh admin data.");
+      }
+    }
+
+    async function loadInventory() {
+      try {
+        const res = await fetch(`/builders/${encodeURIComponent(builder)}/inventory`);
+        inventory = await res.json().catch(() => []);
+        renderInventoryRows();
+      }
+      catch (err) {
+        document.getElementById("inventoryStatus").textContent = "Unable to load inventory.";
+      }
+    }
+
+    function formatPrice(price) {
+      const amount = Number(price) || 0;
+      return amount
+        ? amount.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 })
+        : "Price on request";
+    }
+
+    function renderInventoryRows() {
+      const tbody = document.getElementById("inventoryRows");
+      const emptyState = document.getElementById("inventoryEmptyState");
+      const status = document.getElementById("inventoryStatus");
+
+      if (!inventory.length) {
+        tbody.innerHTML = "";
+        emptyState.hidden = false;
+        status.textContent = "No uploaded inventory found. Sample properties are active for recommendations.";
+        return;
+      }
+
+      emptyState.hidden = true;
+      status.textContent = `${inventory.length} uploaded projects active for recommendations.`;
+      tbody.innerHTML = inventory.map((item) => `
+        <tr>
+          <td><span class="lead-name">${escapeHtml(item.projectName || "Untitled Project")}</span></td>
+          <td>${escapeHtml(item.location || "Not specified")}</td>
+          <td>${escapeHtml(item.configuration || "Not specified")}</td>
+          <td>${escapeHtml(formatPrice(item.price))}</td>
+          <td>${escapeHtml(item.possession || "Not specified")}</td>
+          <td>${escapeHtml(item.highlights || "No highlights")}</td>
+        </tr>
+      `).join("");
+    }
+
+    async function loadBrochures() {
+      try {
+        const res = await fetch(`/builders/${encodeURIComponent(builder)}/brochures`);
+        brochures = await res.json().catch(() => []);
+        renderBrochureRows();
+      }
+      catch (err) {
+        document.getElementById("brochureStatus").textContent = "Unable to load brochures.";
+      }
+    }
+
+    function renderBrochureRows() {
+      const tbody = document.getElementById("brochureRows");
+      const emptyState = document.getElementById("brochureEmptyState");
+      const status = document.getElementById("brochureStatus");
+
+      if (!brochures.length) {
+        tbody.innerHTML = "";
+        emptyState.hidden = false;
+        status.textContent = "No brochures uploaded yet.";
+        return;
+      }
+
+      emptyState.hidden = true;
+      status.textContent = `${brochures.length} brochures available on matching customer recommendation cards.`;
+      tbody.innerHTML = brochures.map((item) => `
+        <tr>
+          <td><span class="lead-name">${escapeHtml(item.brochureName || "Brochure")}</span></td>
+          <td>${escapeHtml(item.projectName || "Not linked")}</td>
+          <td>${escapeHtml(item.uploadedAt ? new Date(item.uploadedAt).toLocaleDateString() : "Today")}</td>
+          <td><button class="gold-btn" type="button" data-brochure-url="${escapeHtml(item.brochureUrl)}" onclick="openBrochureFromButton(this)">View</button></td>
+        </tr>
+      `).join("");
+    }
+
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function openBrochureFromButton(button) {
+      const brochureUrl = button.getAttribute("data-brochure-url");
+
+      if (brochureUrl) {
+        window.open(brochureUrl, "_blank", "noopener");
+      }
+    }
+
+    async function saveBrochure() {
+      const brochureName = document.getElementById("brochureName").value.trim();
+      const projectName = document.getElementById("brochureProject").value.trim();
+      const link = document.getElementById("brochureLink").value.trim();
+      const fileInput = document.getElementById("brochureFile");
+      const file = fileInput.files && fileInput.files[0];
+      const brochureUrl = file ? await readFileAsDataUrl(file) : link;
+
+      if (!brochureName || !projectName || !brochureUrl) {
+        alert("Please add brochure name, project name, and either a PDF file or brochure link.");
+        return;
+      }
+
+      let data = {};
+
+      try {
+        const res = await fetch(`/builders/${encodeURIComponent(builder)}/brochures`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brochureName, projectName, brochureUrl })
+        });
+        data = await res.json().catch(() => ({}));
+
+        if (!res.ok || data.success === false) {
+          alert(data.message || data.error || "Brochure save failed");
+          return;
+        }
+      }
+      catch (err) {
+        alert(err.message || "Brochure save failed");
+        return;
+      }
+
+      document.getElementById("brochureName").value = "";
+      document.getElementById("brochureProject").value = "";
+      document.getElementById("brochureLink").value = "";
+      fileInput.value = "";
+      await loadBrochures();
+    }
+
+    async function uploadInventoryCsv() {
+      const input = document.getElementById("inventoryCsv");
+      const file = input.files && input.files[0];
+
+      if (!file) {
+        alert("Please choose a CSV file first.");
+        return;
+      }
+
+      const csv = await file.text();
+      let data = {};
+
+      try {
+        const res = await fetch(`/builders/${encodeURIComponent(builder)}/inventory/upload`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ csv })
+        });
+        data = await res.json().catch(() => ({}));
+
+        if (!res.ok || data.success === false) {
+          alert(data.message || data.error || "Inventory upload failed");
+          return;
+        }
+      }
+      catch (err) {
+        alert(err.message || "Inventory upload failed");
+        return;
+      }
+
+      inventory = data.inventory || [];
+      input.value = "";
+      renderInventoryRows();
+      document.getElementById("inventoryStatus").textContent =
+        `${data.count || inventory.length} projects uploaded to ${data.storage || "storage"}. Recommendations now use uploaded inventory.`;
+    }
+
+    function downloadSampleInventoryCsv() {
+      downloadRawCsv(
+        "skyline-project-inventory-sample.csv",
+        [
+          "projectName,location,configuration,price,possession,highlights",
+          "Skyline Heights,Navi Mumbai,2 BHK,8900000,Dec 2027,Near station",
+          "Palm Vista,Kharghar,3 BHK,12500000,Mar 2028,Sea view",
+          "Lakeview Residency,Panvel,1 BHK,5200000,Ready,Affordable homes"
+        ].join("\n")
+      );
+    }
+
+    function renderMetrics(analytics) {
+      document.getElementById("metricTotal").textContent = analytics.total ?? leads.length;
+      document.getElementById("metricHot").textContent = analytics.hot ?? leads.filter((lead) => normalizeStatus(lead.status) === "HOT").length;
+      document.getElementById("metricWarm").textContent = analytics.warm ?? leads.filter((lead) => normalizeStatus(lead.status) === "WARM").length;
+      document.getElementById("metricCold").textContent = analytics.cold ?? leads.filter((lead) => normalizeStatus(lead.status) === "COLD").length;
+      document.getElementById("metricVisits").textContent = leads.filter(hasSiteVisit).length;
+      document.getElementById("metricCrm").textContent = leads.filter((lead) => lead.crmExport && lead.crmExport.sent).length;
+    }
+
+    function renderLeadRows() {
+      const tbody = document.getElementById("leadRows");
+      const emptyState = document.getElementById("emptyState");
+
+      if (!leads.length) {
+        tbody.innerHTML = "";
+        emptyState.hidden = false;
+        document.getElementById("tableStatus").textContent = "0 leads";
+        return;
+      }
+
+      emptyState.hidden = true;
+      document.getElementById("tableStatus").textContent = `${leads.length} leads`;
+
+      tbody.innerHTML = leads.map((lead) => {
+        const status = normalizeStatus(lead.status);
+        const created = lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : "";
+
+        return `
+          <tr>
+            <td>
+              <span class="lead-name">${escapeHtml(lead.name || "Unknown Lead")}</span>
+              <span class="subtext">${escapeHtml(created)}</span>
+            </td>
+            <td>${escapeHtml(lead.phone || "Not captured")}</td>
+            <td>${escapeHtml(getConfiguration(lead))}</td>
+            <td>${escapeHtml(getStructuredFields(lead).budget || lead.budget || "Not captured")}</td>
+            <td><span class="status-pill ${statusClass(status)}">${escapeHtml(status)}</span></td>
+            <td>${escapeHtml(getSiteVisitPlan(lead))}</td>
+            <td class="${lead.crmExport && lead.crmExport.sent ? "crm-sent" : ""}">${escapeHtml(getCrmStatus(lead))}</td>
+            <td>
+              <div class="actions">
+                <button class="ghost-btn" type="button" onclick="viewTranscript('${lead._id}')">View Transcript</button>
+                <button class="ghost-btn" type="button" onclick="viewRecommendations('${lead._id}')">View Recommendations</button>
+                <button class="primary-btn" type="button" onclick="sendToCrm('${lead._id}')">Send to CRM</button>
+                <button class="gold-btn" type="button" onclick="downloadSingleLeadCsv('${lead._id}')">Download CSV</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    function findLead(leadId) {
+      return leads.find((lead) => String(lead._id) === String(leadId));
+    }
+
+    function openModal(title, bodyHtml) {
+      document.getElementById("modalTitle").textContent = title;
+      document.getElementById("modalBody").innerHTML = bodyHtml;
+      document.getElementById("adminModal").classList.add("open");
+    }
+
+    function closeModal() {
+      document.getElementById("adminModal").classList.remove("open");
+    }
+
+    function getTranscriptEntries(lead) {
+      if (lead.callAnalysis && lead.callAnalysis.transcript) {
+        return String(lead.callAnalysis.transcript)
+          .split(/\n+/)
+          .filter(Boolean)
+          .map((line) => ({ speaker: "analysis", text: line }));
+      }
+
+      const transcript = lead.outboundCall && lead.outboundCall.transcript;
+      return Array.isArray(transcript) ? transcript : [];
+    }
+
+    function viewTranscript(leadId) {
+      const lead = findLead(leadId);
+      const entries = getTranscriptEntries(lead || {});
+
+      const body = entries.length
+        ? entries.map((entry) => `
+            <div class="transcript-entry">
+              <strong>${escapeHtml(entry.speaker || "speaker")}</strong><br>
+              ${escapeHtml(entry.text || entry.rawAnswer || "No transcript text")}
+            </div>
+          `).join("")
+        : "<div class=\"empty-state\">No transcript available for this lead yet.</div>";
+
+      openModal(`Transcript - ${lead ? lead.name || "Lead" : "Lead"}`, body);
+    }
+
+    function viewRecommendations(leadId) {
+      const lead = findLead(leadId);
+      const matches = lead && Array.isArray(lead.matchedProperties) ? lead.matchedProperties : [];
+
+      const body = matches.length
+        ? matches.map((match) => {
+            const property = match.property || {};
+            const reasons = Array.isArray(match.reasons) ? match.reasons.join(" · ") : "Matched to lead preferences.";
+
+            return `
+              <div class="recommendation-card">
+                <strong>${escapeHtml(property.title || "Recommended Project")}</strong>
+                ${escapeHtml(property.location || lead.location || "Location not captured")} ·
+                ${escapeHtml(property.bhk ? `${property.bhk} BHK` : getConfiguration(lead))} ·
+                ${escapeHtml(property.budgetLabel || lead.budget || "Budget not captured")}<br>
+                <span class="status-pill status-neutral">${escapeHtml(match.matchScore || 90)}% Match</span>
+                <p>${escapeHtml(reasons)}</p>
+              </div>
+            `;
+          }).join("")
+        : "<div class=\"empty-state\">No recommendations available for this lead yet.</div>";
+
+      openModal(`Recommendations - ${lead ? lead.name || "Lead" : "Lead"}`, body);
+    }
+
+    async function sendToCrm(leadId) {
+      const res = await fetch(`/builders/${encodeURIComponent(builder)}/leads/${encodeURIComponent(leadId)}/send-crm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ crmName: "Demo CRM" })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data.success === false) {
+        alert(data.message || data.error || "CRM export failed");
+        return;
+      }
+
+      await loadAdminData();
+    }
+
+    function csvEscape(value) {
+      return `"${String(value || "").replace(/"/g, '""')}"`;
+    }
+
+    function leadToCsvRow(lead) {
+      return [
+        lead.name,
+        lead.phone,
+        getConfiguration(lead),
+        getStructuredFields(lead).budget || lead.budget,
+        normalizeStatus(lead.status),
+        getSiteVisitPlan(lead),
+        getCrmStatus(lead)
+      ].map(csvEscape).join(",");
+    }
+
+    function downloadCsv(filename, rows) {
+      const csv = [
+        "Name,Phone,Configuration,Budget,Lead Status,Site Visit Plan,CRM Status",
+        ...rows
+      ].join("\n");
+      downloadRawCsv(filename, csv);
+    }
+
+    function downloadRawCsv(filename, csv) {
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadLeadsCsv() {
+      downloadCsv(`${builder}-admin-leads.csv`, leads.map(leadToCsvRow));
+    }
+
+    function downloadSingleLeadCsv(leadId) {
+      const lead = findLead(leadId);
+      if (lead) {
+        downloadCsv(`${builder}-${lead.name || "lead"}.csv`, [leadToCsvRow(lead)]);
+      }
+    }
+
+    loadAdminData().catch((err) => {
+      document.getElementById("tableStatus").textContent = "Unable to load admin data";
+      document.getElementById("leadRows").innerHTML = "";
+      document.getElementById("emptyState").hidden = false;
+      document.getElementById("emptyState").textContent = err.message || "Unable to load admin data.";
+    });
+  </script>
+</body>
+</html>

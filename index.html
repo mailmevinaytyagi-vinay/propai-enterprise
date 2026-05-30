@@ -1,164 +1,1437 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>PropAI Enterprise</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skyline Realty AI</title>
 
   <style>
-
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background: linear-gradient(to right, #eef2ff, #f8fafc);
-      color: #111827;
+    :root {
+      --navy: #071a33;
+      --blue: #123b70;
+      --bright-blue: #1d4ed8;
+      --gold: #c79a2d;
+      --gold-soft: #fff7df;
+      --ink: #101827;
+      --muted: #667085;
+      --line: #e5eaf1;
+      --panel: #ffffff;
+      --soft: #f6f8fb;
+      --success: #0f766e;
+      --danger: #b42318;
+      --shadow: 0 18px 45px rgba(7, 26, 51, 0.12);
+      --shadow-soft: 0 10px 28px rgba(7, 26, 51, 0.08);
     }
 
-    .header {
-      background: #1e3a8a;
-      color: white;
-      padding: 15px 30px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .container {
-      max-width: 1100px;
-      margin: auto;
-      padding: 20px;
-    }
-
-    input, select, textarea {
-      width: 100%;
-      padding: 12px;
-      margin-top: 10px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
+    * {
       box-sizing: border-box;
     }
 
-    button {
-      padding: 12px 20px;
-      border: none;
-      border-radius: 8px;
-      color: white;
-      cursor: pointer;
-      margin-top: 10px;
-      background: #2563eb;
-      font-weight: bold;
-      font-size: 15px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      transition: 0.2s;
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 0;
+      background: #ffffff;
+      color: var(--ink);
     }
 
-    button:hover {
-      opacity: 0.92;
-      transform: translateY(-1px);
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: rgba(255, 255, 255, 0.94);
+      border-bottom: 1px solid rgba(229, 234, 241, 0.9);
+      backdrop-filter: blur(14px);
+    }
+
+    .header-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 16px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--navy);
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--navy), var(--blue));
+      box-shadow: 0 10px 22px rgba(18, 59, 112, 0.22);
+    }
+
+    .brand-icon svg {
+      width: 25px;
+      height: 25px;
+    }
+
+    .header-note {
+      color: var(--muted);
+      font-size: 14px;
+      text-align: right;
+    }
+
+    .container {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 22px 34px;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 66px 0 36px;
+      background:
+        linear-gradient(135deg, rgba(7, 26, 51, 0.05), rgba(199, 154, 45, 0.08) 52%, rgba(255, 255, 255, 0.5)),
+        #ffffff;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero-inner {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 22px;
+      display: grid;
+      grid-template-columns: 1.06fr 0.94fr;
+      gap: 36px;
+      align-items: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid rgba(199, 154, 45, 0.35);
+      border-radius: 999px;
+      background: #ffffff;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 800;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .eyebrow-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--gold);
+    }
+
+    h1 {
+      margin: 22px 0 14px;
+      color: var(--navy);
+      font-size: clamp(38px, 6vw, 64px);
+      line-height: 1.03;
+      letter-spacing: 0;
+    }
+
+    .hero-subtitle {
+      margin: 0;
+      max-width: 650px;
+      color: #405064;
+      font-size: 19px;
+      line-height: 1.65;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .trust-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 32px;
+    }
+
+    .trust-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 14px;
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      color: var(--navy);
+      font-weight: 800;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .trust-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: var(--gold);
+      background: var(--gold-soft);
+      flex: 0 0 auto;
+    }
+
+    .hero-panel {
+      position: relative;
+      background: var(--navy);
+      border-radius: 28px;
+      padding: 24px;
+      color: #ffffff;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-panel::before {
+      content: "";
+      position: absolute;
+      inset: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 22px;
+      pointer-events: none;
+    }
+
+    .market-card {
+      position: relative;
+      display: grid;
+      gap: 18px;
+    }
+
+    .market-heading {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: flex-start;
+    }
+
+    .market-heading h2 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.25;
+      color: #ffffff;
+    }
+
+    .market-badge {
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(199, 154, 45, 0.16);
+      color: #f7d88b;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .market-map {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .market-location {
+      min-height: 116px;
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .market-location strong,
+    .market-location span {
+      display: block;
+    }
+
+    .market-location strong {
+      margin-bottom: 8px;
+      color: #ffffff;
+      font-size: 16px;
+    }
+
+    .market-location span {
+      color: #c7d5e8;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .market-stat {
+      padding: 16px;
+      border-radius: 18px;
+      background: #ffffff;
+      color: var(--navy);
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .market-stat strong {
+      display: block;
+      font-size: 30px;
+      line-height: 1;
+    }
+
+    .market-stat span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .project-showcase {
+      margin: 34px 0 10px;
+      padding: 0;
+    }
+
+    .project-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+      gap: 28px;
+      align-items: stretch;
+      overflow: hidden;
+      border: 1px solid rgba(199, 154, 45, 0.22);
+      border-radius: 24px;
+      background:
+        linear-gradient(135deg, rgba(7, 26, 51, 0.98), rgba(18, 59, 112, 0.94)),
+        var(--navy);
+      box-shadow: 0 22px 52px rgba(7, 26, 51, 0.16);
+    }
+
+    .project-copy {
+      padding: 34px;
+      color: #ffffff;
+    }
+
+    .project-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid rgba(248, 223, 155, 0.34);
+      border-radius: 999px;
+      color: #f8df9b;
+      background: rgba(255, 255, 255, 0.08);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .project-copy h2 {
+      margin: 18px 0 10px;
+      color: #ffffff;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .project-tagline {
+      margin: 0;
+      color: #dce7f5;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+
+    .project-highlights {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin: 26px 0;
+    }
+
+    .project-highlight {
+      padding: 15px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .project-highlight span {
+      display: block;
+      color: #aebed2;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .project-highlight strong {
+      display: block;
+      margin-top: 6px;
+      color: #ffffff;
+      font-size: 17px;
+      line-height: 1.25;
+    }
+
+    .project-visual {
+      min-height: 100%;
+      padding: 24px;
+      display: flex;
+      align-items: stretch;
+    }
+
+    .project-price-card {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 22px;
+      padding: 28px;
+      border-radius: 20px;
+      background: #ffffff;
+      color: var(--navy);
+      box-shadow: 0 18px 40px rgba(7, 26, 51, 0.18);
+    }
+
+    .price-label {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .price-value {
+      margin: 0;
+      color: var(--navy);
+      font-size: clamp(32px, 5vw, 48px);
+      line-height: 1;
+      font-weight: 900;
+    }
+
+    .project-meta {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .project-meta li {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 13px 0;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .project-meta li:last-child {
+      border-bottom: none;
+    }
+
+    .project-meta strong {
+      color: var(--navy);
+      text-align: right;
+    }
+
+    .social-proof {
+      margin: 24px 0 10px;
+    }
+
+    .stats-panel {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      padding: 18px;
+      border: 1px solid rgba(199, 154, 45, 0.2);
+      border-radius: 24px;
+      background:
+        linear-gradient(135deg, rgba(255, 247, 223, 0.72), rgba(255, 255, 255, 0.96)),
+        #ffffff;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .stat-card {
+      min-height: 138px;
+      padding: 20px;
+      border: 1px solid rgba(229, 234, 241, 0.95);
+      border-radius: 18px;
+      background: #ffffff;
+      box-shadow: 0 10px 26px rgba(7, 26, 51, 0.07);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .stat-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      color: var(--navy);
+      background: linear-gradient(135deg, #f8df9b, var(--gold));
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .stat-value {
+      margin: 0;
+      color: var(--navy);
+      font-size: clamp(28px, 3vw, 38px);
+      line-height: 1;
+      font-weight: 900;
+    }
+
+    .stat-label {
+      margin: 7px 0 0;
+      color: var(--muted);
+      line-height: 1.4;
+      font-weight: 800;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      margin: 34px 0;
+    }
+
+    .feature-card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 24px;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .feature-card h3 {
+      margin: 14px 0 8px;
+      color: var(--navy);
+      font-size: 20px;
+    }
+
+    .feature-card p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .feature-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: var(--gold);
+      background: var(--gold-soft);
+      border: 1px solid rgba(199, 154, 45, 0.18);
     }
 
     .card {
       background: white;
-      padding: 24px;
+      padding: 28px;
+      border-radius: 24px;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .lead-section {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 24px;
+      align-items: stretch;
+      margin-bottom: 34px;
+    }
+
+    .section-kicker {
+      color: var(--gold);
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .section-title {
+      margin: 8px 0 10px;
+      color: var(--navy);
+      font-size: 32px;
+      line-height: 1.15;
+    }
+
+    .section-copy {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .advisor-card {
+      min-height: 100%;
+      background:
+        linear-gradient(160deg, rgba(7, 26, 51, 0.95), rgba(18, 59, 112, 0.94)),
+        var(--navy);
+      color: #ffffff;
+      border-color: transparent;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 26px;
+    }
+
+    .advisor-card .section-title,
+    .advisor-card .section-copy {
+      color: #ffffff;
+    }
+
+    .advisor-card .section-copy {
+      color: #cbd7e6;
+    }
+
+    .advisor-list {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .advisor-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #e6edf7;
+    }
+
+    .check {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      color: var(--navy);
+      background: #f7d88b;
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .field {
+      display: grid;
+      gap: 7px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      color: #26364a;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 13px 14px;
       border-radius: 14px;
+      border: 1px solid #d7dfeb;
+      background: #ffffff;
+      color: var(--ink);
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--bright-blue);
+      box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.1);
+    }
+
+    textarea {
+      min-height: 112px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 15px;
+      transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+      font-family: inherit;
+    }
+
+    button:hover {
+      opacity: 0.96;
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.7;
+      transform: none;
+    }
+
+    .action-row {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr 1fr;
+      gap: 12px;
       margin-top: 20px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+
+    .premium-btn {
+      min-height: 50px;
+      padding: 13px 18px;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--navy), var(--bright-blue));
+      box-shadow: 0 14px 26px rgba(29, 78, 216, 0.24);
+    }
+
+    .gold-btn {
+      min-height: 50px;
+      padding: 13px 18px;
+      color: var(--navy);
+      background: linear-gradient(135deg, #f8df9b, var(--gold));
+      box-shadow: 0 14px 26px rgba(199, 154, 45, 0.2);
+    }
+
+    .outline-btn {
+      min-height: 50px;
+      padding: 13px 18px;
+      color: var(--navy);
+      background: #ffffff;
+      border: 1px solid #c9d4e4;
+      box-shadow: 0 10px 22px rgba(7, 26, 51, 0.08);
+    }
+
+    #result {
+      margin-top: 18px;
+      color: var(--navy);
+      font-weight: 800;
+      line-height: 1.5;
+    }
+
+    #result small {
+      color: var(--muted);
+      font-weight: 700;
     }
 
     .matches {
       display: grid;
-      gap: 12px;
-      margin-top: 18px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 22px;
+    }
+
+    .matches h3 {
+      grid-column: 1 / -1;
+      margin: 0;
+      color: var(--navy);
+      font-size: 28px;
     }
 
     .match-card {
-      border: 1px solid #dbe3f0;
-      border-radius: 10px;
-      padding: 14px;
-      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(199, 154, 45, 0.2);
+      border-radius: 24px;
+      padding: 0;
+      background: #ffffff;
+      box-shadow: 0 18px 42px rgba(7, 26, 51, 0.1);
+    }
+
+    .empty-match {
+      grid-column: 1 / -1;
+      color: var(--muted);
+      line-height: 1.6;
+      padding: 22px;
+    }
+
+    .match-card-header {
+      padding: 20px 20px 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
     }
 
     .match-title {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      font-weight: bold;
+      min-width: 0;
+    }
+
+    .match-title strong {
+      display: block;
+      color: var(--navy);
+      font-size: 21px;
+      line-height: 1.3;
+    }
+
+    .match-location {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.35;
     }
 
     .match-score {
-      color: #047857;
+      min-width: 72px;
+      padding: 9px 10px;
+      border-radius: 16px;
+      color: var(--navy);
+      background: linear-gradient(135deg, #f8df9b, var(--gold));
+      border: 1px solid rgba(199, 154, 45, 0.36);
       white-space: nowrap;
+      font-weight: 900;
+      font-size: 14px;
+      text-align: center;
+      box-shadow: 0 10px 22px rgba(199, 154, 45, 0.18);
     }
 
-    .match-meta {
-      margin-top: 8px;
-      color: #374151;
-      line-height: 1.5;
+    .match-score small {
+      display: block;
+      margin-top: 2px;
+      color: rgba(7, 26, 51, 0.72);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .match-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 0 20px;
+    }
+
+    .match-badge {
+      padding: 7px 10px;
+      border-radius: 999px;
+      color: var(--navy);
+      background: var(--gold-soft);
+      border: 1px solid rgba(199, 154, 45, 0.24);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .match-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding: 0 20px;
+    }
+
+    .match-detail {
+      padding: 13px 14px;
+      border-radius: 16px;
+      background: var(--soft);
+      border: 1px solid #edf1f6;
+    }
+
+    .match-detail span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
+    .match-detail strong {
+      display: block;
+      margin-top: 4px;
+      color: var(--navy);
+      font-size: 14px;
+      line-height: 1.35;
     }
 
     .match-reasons {
-      margin-top: 8px;
-      color: #1f2937;
+      margin: 0 20px;
+      padding: 15px;
+      border-radius: 16px;
+      color: #344054;
+      background: linear-gradient(135deg, rgba(7, 26, 51, 0.04), rgba(255, 247, 223, 0.7));
+      border: 1px solid rgba(229, 234, 241, 0.9);
+      line-height: 1.55;
       font-size: 14px;
     }
 
+    .match-reasons strong {
+      color: var(--navy);
+    }
+
+    .visit-btn {
+      width: calc(100% - 40px);
+      min-height: 48px;
+      margin: 0 20px 20px;
+      margin-top: auto;
+      padding: 12px 16px;
+      color: var(--navy);
+      background: linear-gradient(135deg, #f8df9b, var(--gold));
+      box-shadow: 0 14px 26px rgba(199, 154, 45, 0.18);
+    }
+
+    .brochure-btn {
+      width: calc(100% - 40px);
+      min-height: 46px;
+      margin: -8px 20px 0;
+      padding: 12px 16px;
+      color: var(--navy);
+      background: #ffffff;
+      border: 1px solid rgba(199, 154, 45, 0.34);
+      box-shadow: 0 10px 22px rgba(7, 26, 51, 0.08);
+    }
+
+    .ai-widget {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 20;
+      display: grid;
+      justify-items: end;
+      gap: 14px;
+      pointer-events: none;
+    }
+
+    .ai-panel {
+      width: min(360px, calc(100vw - 32px));
+      overflow: hidden;
+      border: 1px solid rgba(199, 154, 45, 0.24);
+      border-radius: 22px;
+      background: #ffffff;
+      box-shadow: 0 22px 60px rgba(7, 26, 51, 0.22);
+      transform: translateY(12px);
+      opacity: 0;
+      visibility: hidden;
+      transition: transform 0.22s, opacity 0.22s, visibility 0.22s;
+      pointer-events: auto;
+    }
+
+    .ai-widget.open .ai-panel {
+      transform: translateY(0);
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .ai-panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 18px;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--navy), var(--blue));
+    }
+
+    .ai-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 900;
+    }
+
+    .ai-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      color: var(--navy);
+      background: linear-gradient(135deg, #f8df9b, var(--gold));
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+      flex: 0 0 auto;
+    }
+
+    .ai-icon svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .ai-close {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.12);
+      box-shadow: none;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .ai-panel-body {
+      padding: 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .ai-message {
+      margin: 0;
+      padding: 14px 15px;
+      border-radius: 16px;
+      color: #24364b;
+      background: var(--soft);
+      border: 1px solid #edf1f6;
+      line-height: 1.55;
+      font-weight: 700;
+    }
+
+    .ai-quick-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .ai-quick-btn {
+      min-height: 44px;
+      padding: 11px 12px;
+      color: var(--navy);
+      background: #ffffff;
+      border: 1px solid #d9e1ec;
+      border-radius: 14px;
+      box-shadow: 0 8px 18px rgba(7, 26, 51, 0.06);
+      font-size: 14px;
+      text-align: left;
+    }
+
+    .ai-quick-btn.primary {
+      color: var(--navy);
+      border-color: rgba(199, 154, 45, 0.4);
+      background: var(--gold-soft);
+    }
+
+    .ai-widget-toggle {
+      min-height: 54px;
+      padding: 14px 18px 14px 15px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: #ffffff;
+      background: linear-gradient(135deg, var(--navy), var(--bright-blue));
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 18px 38px rgba(7, 26, 51, 0.24);
+      pointer-events: auto;
+    }
+
+    .footer {
+      margin-top: 40px;
+      padding: 24px 22px;
+      text-align: center;
+      color: #667085;
+      border-top: 1px solid var(--line);
+      background: #ffffff;
+    }
+
+    @media (max-width: 920px) {
+      .hero-inner,
+      .lead-section,
+      .project-card {
+        grid-template-columns: 1fr;
+      }
+
+      .feature-grid,
+      .matches,
+      .stats-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .market-map {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .header-inner {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .header-note {
+        text-align: left;
+      }
+
+      .container {
+        padding: 0 16px 26px;
+      }
+
+      .hero {
+        padding: 38px 0 26px;
+      }
+
+      .hero-inner {
+        padding: 0 16px;
+      }
+
+      .hero-panel,
+      .card {
+        border-radius: 20px;
+        padding: 20px;
+      }
+
+      .project-card {
+        border-radius: 20px;
+      }
+
+      .project-copy,
+      .project-visual,
+      .project-price-card {
+        padding: 20px;
+      }
+
+      .trust-strip,
+      .form-grid,
+      .action-row,
+      .match-detail-grid,
+      .project-highlights,
+      .ai-quick-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .ai-widget {
+        right: 16px;
+        bottom: 16px;
+        left: 16px;
+      }
+
+      .ai-panel {
+        width: 100%;
+      }
+
+      .ai-widget-toggle {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .section-title {
+        font-size: 27px;
+      }
+
+      .stats-panel {
+        padding: 14px;
+        border-radius: 20px;
+      }
+
+      .stat-card {
+        min-height: auto;
+      }
+
+      .match-card-header {
+        flex-direction: column;
+      }
+
+      .match-score {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 
 <body>
 
 <div class="header" id="header">
-  <div id="branding">🏠 PropAI</div>
+  <div class="header-inner">
+    <div class="brand" id="branding" aria-label="Skyline Realty AI">
+      <span class="brand-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M4 21V8.5L12 3l8 5.5V21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M8 21v-9h8v9M10 8.5h.01M14 8.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </span>
+      <span>Skyline Realty AI</span>
+    </div>
+    <div class="header-note">Premium AI sales assistant for Navi Mumbai builder demos</div>
+  </div>
 </div>
 
-<div class="container">
+<section class="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="eyebrow"><span class="eyebrow-dot"></span> AI-powered property discovery</div>
+      <h1>Find Your Perfect Home with AI</h1>
+      <p class="hero-subtitle">Talk to our AI property advisor and get personalized project recommendations instantly.</p>
 
-  <div class="card">
+      <div class="hero-actions">
+        <button class="premium-btn" type="button" onclick="document.getElementById('name').focus()">Submit Lead</button>
+        <button class="gold-btn" type="button" onclick="startVoice()">Voice Inquiry</button>
+        <button class="outline-btn" type="button" onclick="chatbotFill()">AI Chatbot Demo</button>
+      </div>
 
-    <h2>AI Property Assistant</h2>
+      <div class="trust-strip" aria-label="Trust indicators">
+        <div class="trust-item"><span class="trust-icon">AI</span>AI Powered</div>
+        <div class="trust-item"><span class="trust-icon">OK</span>Verified Projects</div>
+        <div class="trust-item"><span class="trust-icon">24</span>Instant Response</div>
+      </div>
+    </div>
 
-    <input id="name" placeholder="Your Name *">
+    <div class="hero-panel">
+      <div class="market-card">
+        <div class="market-heading">
+          <h2>Live recommendation engine for high-intent buyers</h2>
+          <span class="market-badge">Demo Ready</span>
+        </div>
+        <div class="market-map">
+          <div class="market-location">
+            <strong>Navi Mumbai</strong>
+            <span>AI-matched projects by location, budget, possession and configuration.</span>
+          </div>
+          <div class="market-location">
+            <strong>Panvel</strong>
+            <span>Lead qualification tuned for site visit readiness and urgency.</span>
+          </div>
+          <div class="market-location">
+            <strong>Thane</strong>
+            <span>Instant buyer summaries for sales follow-up and CRM action.</span>
+          </div>
+        </div>
+        <div class="market-stat">
+          <div>
+            <strong>92%</strong>
+            <span>Sample buyer-project match score for premium inventory demos.</span>
+          </div>
+          <span class="trust-icon">AI</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
-    <input id="phone" placeholder="Phone Number *" maxlength="10" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+<main class="container">
+  <section class="project-showcase" aria-label="Featured project showcase">
+    <div class="project-card">
+      <div class="project-copy">
+        <div class="project-brand"><span class="eyebrow-dot"></span> Skyline Realty AI</div>
+        <h2>Skyline Heights, Navi Mumbai</h2>
+        <p class="project-tagline">Luxury 2 &amp; 3 BHK Residences crafted for elevated city living in Navi Mumbai.</p>
 
-    <select id="location">
-      <option value="">Select Location</option>
-      <option>Thane</option>
-      <option>Navi Mumbai</option>
-      <option>Panvel</option>
-    </select>
+        <div class="project-highlights">
+          <div class="project-highlight">
+            <span>Residences</span>
+            <strong>Luxury 2 &amp; 3 BHK</strong>
+          </div>
+          <div class="project-highlight">
+            <span>Possession</span>
+            <strong>Dec 2027</strong>
+          </div>
+          <div class="project-highlight">
+            <span>Location</span>
+            <strong>Navi Mumbai</strong>
+          </div>
+          <div class="project-highlight">
+            <span>Project Type</span>
+            <strong>Premium Residential</strong>
+          </div>
+        </div>
 
-    <select id="budget">
-      <option value="">Select Budget</option>
-      <option>50-80 lakh</option>
-      <option>80 lakh - 1 Cr</option>
-      <option>1 Cr+</option>
-    </select>
+        <button class="gold-btn" type="button" onclick="bookSiteVisit()">Book Site Visit</button>
+      </div>
 
-    <select id="timeline">
-      <option value="">Purchase Timeline</option>
-      <option>Immediate</option>
-      <option>1 Month</option>
-      <option>1-3 Months</option>
-    </select>
+      <div class="project-visual" aria-label="Skyline Heights offer details">
+        <div class="project-price-card">
+          <div>
+            <p class="price-label">Starting Price</p>
+            <p class="price-value">₹89 Lakhs</p>
+          </div>
 
-    <textarea id="leadText" placeholder="Tell us your requirement"></textarea>
+          <ul class="project-meta">
+            <li><span>Project</span><strong>Skyline Heights</strong></li>
+            <li><span>Location</span><strong>Navi Mumbai</strong></li>
+            <li><span>Configuration</span><strong>2 &amp; 3 BHK</strong></li>
+            <li><span>Possession</span><strong>Dec 2027</strong></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    <button id="submitBtn" onclick="sendLead()">
-      Submit Lead
-    </button>
+  <section class="social-proof" aria-label="Skyline Realty AI social proof">
+    <div class="stats-panel">
+      <div class="stat-card">
+        <span class="stat-icon">01</span>
+        <div>
+          <p class="stat-value">1200+</p>
+          <p class="stat-label">Families Served</p>
+        </div>
+      </div>
 
-    <button onclick="startVoice()">
-      🎙️ Voice Inquiry
-    </button>
+      <div class="stat-card">
+        <span class="stat-icon">02</span>
+        <div>
+          <p class="stat-value">50+</p>
+          <p class="stat-label">Projects Listed</p>
+        </div>
+      </div>
 
-    <button onclick="chatbotFill()">
-      🤖 AI Chatbot Demo
-    </button>
+      <div class="stat-card">
+        <span class="stat-icon">03</span>
+        <div>
+          <p class="stat-value">98%</p>
+          <p class="stat-label">Customer Satisfaction</p>
+        </div>
+      </div>
 
-    <div id="result"></div>
-    <div id="matches"></div>
+      <div class="stat-card">
+        <span class="stat-icon">AI</span>
+        <div>
+          <p class="stat-value">24x7</p>
+          <p class="stat-label">AI Property Assistant</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
+  <section class="feature-grid" aria-label="Skyline Realty AI features">
+    <div class="feature-card">
+      <div class="feature-icon">01</div>
+      <h3>AI Property Advisor</h3>
+      <p>Captures buyer requirements clearly and turns them into actionable real estate intent.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">02</div>
+      <h3>Instant Lead Qualification</h3>
+      <p>Checks budget, timeline and location signals so sales teams can prioritize faster.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">03</div>
+      <h3>Smart Property Recommendations</h3>
+      <p>Shows matched projects with scores and reasons tailored for buyer conversations.</p>
+    </div>
+  </section>
+
+  <section class="lead-section" id="lead-form">
+    <div class="card advisor-card">
+      <div>
+        <div class="section-kicker">Customer lead form</div>
+        <h2 class="section-title">Qualify buyers and recommend properties in one flow.</h2>
+        <p class="section-copy">Built for builder walk-throughs across Navi Mumbai, Panvel and Thane, with instant lead capture and AI-backed recommendations.</p>
+      </div>
+      <ul class="advisor-list">
+        <li><span class="check">✓</span> Website lead capture stays connected to the existing backend.</li>
+        <li><span class="check">✓</span> Voice inquiry and chatbot demo continue using the same handlers.</li>
+        <li><span class="check">✓</span> Recommendations appear immediately after successful qualification.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="section-kicker">Start a recommendation</div>
+      <h2 class="section-title">Tell us what you are looking for</h2>
+      <p class="section-copy">Submit your requirement and Skyline Realty AI will match you with suitable projects.</p>
+
+      <div class="form-grid">
+        <div class="field">
+          <label for="name">Full Name *</label>
+          <input id="name" placeholder="Enter your full name" autocomplete="name">
+        </div>
+
+        <div class="field">
+          <label for="phone">Phone Number *</label>
+          <input id="phone" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" autocomplete="tel" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+        </div>
+
+        <div class="field">
+          <label for="location">Preferred Location *</label>
+          <select id="location">
+            <option value="">Select Location</option>
+            <option>Thane</option>
+            <option>Navi Mumbai</option>
+            <option>Panvel</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="budget">Budget Range *</label>
+          <select id="budget">
+            <option value="">Select Budget</option>
+            <option>50-80 lakh</option>
+            <option>80 lakh - 1 Cr</option>
+            <option>1 Cr+</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="timeline">Purchase Timeline *</label>
+          <select id="timeline">
+            <option value="">Purchase Timeline</option>
+            <option>Immediate</option>
+            <option>1 Month</option>
+            <option>1-3 Months</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="leadText">Requirement Notes</label>
+          <textarea id="leadText" placeholder="Example: Need 2BHK near station, ready possession, site visit this weekend"></textarea>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button id="submitBtn" class="premium-btn" type="button" onclick="sendLead()">Submit Lead</button>
+        <button class="gold-btn" type="button" onclick="startVoice()">Voice Inquiry</button>
+        <button class="outline-btn" type="button" onclick="chatbotFill()">AI Chatbot Demo</button>
+      </div>
+
+      <div id="result"></div>
+    </div>
+  </section>
+
+  <section id="matches" aria-live="polite"></section>
+</main>
+
+<footer class="footer">
+  © 2026 Skyline Realty AI. Demo platform for real estate lead automation.
+</footer>
+
+<div class="ai-widget" id="aiWidget">
+  <div class="ai-panel" id="aiPanel" aria-hidden="true">
+    <div class="ai-panel-header">
+      <div class="ai-title">
+        <span class="ai-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 5V3M7 9h10a3 3 0 0 1 3 3v3a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4v-3a3 3 0 0 1 3-3Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+            <path d="M9 14h.01M15 14h.01M9 19l-2 2M15 19l2 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+          </svg>
+        </span>
+        <span>Skyline AI</span>
+      </div>
+      <button class="ai-close" type="button" aria-label="Minimize Skyline AI" onclick="toggleAssistant(false)">×</button>
+    </div>
+    <div class="ai-panel-body">
+      <p class="ai-message">Hi, I am Skyline AI. I can help you find the right property.</p>
+      <div class="ai-quick-grid" aria-label="Skyline AI quick actions">
+        <button class="ai-quick-btn" type="button" onclick="assistantQuickAction('1bhk')">Looking for 1 BHK</button>
+        <button class="ai-quick-btn" type="button" onclick="assistantQuickAction('2bhk')">Looking for 2 BHK</button>
+        <button class="ai-quick-btn primary" type="button" onclick="assistantQuickAction('siteVisit')">Book Site Visit</button>
+        <button class="ai-quick-btn" type="button" onclick="assistantQuickAction('sales')">Talk to Sales</button>
+      </div>
+    </div>
   </div>
 
+  <button class="ai-widget-toggle" type="button" aria-expanded="false" aria-controls="aiPanel" onclick="toggleAssistant()">
+    <span class="ai-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M5 9a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v4a4 4 0 0 1-4 4h-3l-4 3v-3H9a4 4 0 0 1-4-4V9Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="M9 11h.01M12 11h.01M15 11h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+      </svg>
+    </span>
+    Ask Skyline AI
+  </button>
 </div>
 
 <script>
@@ -271,7 +1544,8 @@ function renderMatches(matches) {
   if (!matches.length) {
     container.innerHTML = `
       <div class="matches">
-        <div class="match-card">
+        <h3>Recommended Properties</h3>
+        <div class="match-card empty-match">
           No exact property matches found. Our sales team will follow up with alternatives.
         </div>
       </div>
@@ -286,21 +1560,53 @@ function renderMatches(matches) {
 
   matches.forEach((match) => {
 
+    const configuration = match.bhk ? `${escapeHtml(match.bhk)}BHK` : "Configuration shared by advisor";
+    const matchScore = Number(match.matchScore) || 90;
+    const reasons = Array.isArray(match.reasons) && match.reasons.length
+      ? match.reasons.map(escapeHtml).join(" · ")
+      : "Matched to your location, budget and buying timeline.";
+    const badges = getPropertyBadges(match, matchScore);
+    const badgeHtml = badges.length
+      ? `<div class="match-badges">${badges.map((badge) => `<span class="match-badge">${escapeHtml(badge)}</span>`).join("")}</div>`
+      : "";
+    const brochureHtml = match.brochureUrl
+      ? `<button class="brochure-btn" type="button" data-brochure-url="${escapeHtml(match.brochureUrl)}" onclick="openBrochureFromButton(this)">View Brochure</button>`
+      : "";
+
     html += `
       <div class="match-card">
-        <div class="match-title">
-          <span>${escapeHtml(match.title)}</span>
-          <span class="match-score">${escapeHtml(match.matchScore)}% match</span>
+        <div class="match-card-header">
+          <div class="match-title">
+            <strong>${escapeHtml(match.title || "Recommended Project")}</strong>
+            <span class="match-location">${escapeHtml(match.location || "Navi Mumbai")}</span>
+          </div>
+          <span class="match-score">${escapeHtml(matchScore)}%<small>Match</small></span>
         </div>
-        <div class="match-meta">
-          ${escapeHtml(match.bhk)}BHK · ${escapeHtml(match.location)} · ${escapeHtml(match.budgetLabel)} · ${escapeHtml(match.possession)}
+
+        ${badgeHtml}
+
+        <div class="match-detail-grid">
+          <div class="match-detail">
+            <span>Location</span>
+            <strong>${escapeHtml(match.location || "Navi Mumbai")}</strong>
+          </div>
+          <div class="match-detail">
+            <span>Configuration</span>
+            <strong>${configuration}</strong>
+          </div>
+          <div class="match-detail">
+            <span>Price</span>
+            <strong>${escapeHtml(match.budgetLabel || "As per requirement")}</strong>
+          </div>
+          <div class="match-detail">
+            <span>Possession</span>
+            <strong>${escapeHtml(match.possession || "Contact advisor")}</strong>
+          </div>
         </div>
-        <div class="match-meta">
-          ${escapeHtml(match.description)}
-        </div>
-        <div class="match-reasons">
-          ${match.reasons.map(escapeHtml).join(" · ")}
-        </div>
+
+        <p class="match-reasons"><strong>Match reason:</strong> ${reasons}</p>
+        ${brochureHtml}
+        <button class="visit-btn" type="button" onclick="document.getElementById('result').innerHTML = '✅ Site visit request captured. Our sales advisor will call shortly.'">Request Site Visit</button>
       </div>
     `;
   });
@@ -308,6 +1614,113 @@ function renderMatches(matches) {
   html += "</div>";
 
   container.innerHTML = html;
+}
+
+function getPropertyBadges(match, matchScore) {
+
+  const badges = [];
+  const budgetLabel = String(match.budgetLabel || "").toLowerCase();
+  const possession = String(match.possession || "").toLowerCase();
+
+  if (matchScore >= 90) {
+    badges.push("Best Match");
+  }
+
+  if (budgetLabel && budgetLabel !== "as per requirement") {
+    badges.push("Within Budget");
+  }
+
+  if (possession.includes("ready") || possession.includes("2026") || possession.includes("2027")) {
+    badges.push("Ready Soon");
+  }
+
+  return badges;
+}
+
+function openBrochureFromButton(button) {
+
+  const brochureUrl = button.getAttribute("data-brochure-url");
+
+  if (brochureUrl) {
+    window.open(brochureUrl, "_blank", "noopener");
+  }
+}
+
+function bookSiteVisit() {
+
+  const leadForm = document.getElementById("lead-form");
+
+  if (leadForm) {
+    leadForm.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+
+  document.getElementById("location").value = "Navi Mumbai";
+  document.getElementById("budget").value = "80 lakh - 1 Cr";
+  document.getElementById("timeline").value = "Immediate";
+  document.getElementById("leadText").value =
+    "Interested in Skyline Heights, Navi Mumbai. Please book a site visit for Luxury 2 & 3 BHK Residences starting ₹89 Lakhs.";
+  document.getElementById("result").innerHTML =
+    "✅ Site visit inquiry started. Please add your name and phone number.";
+
+  window.setTimeout(() => {
+    document.getElementById("name").focus();
+  }, 350);
+}
+
+function toggleAssistant(forceOpen) {
+
+  const widget = document.getElementById("aiWidget");
+  const panel = document.getElementById("aiPanel");
+  const toggle = document.querySelector(".ai-widget-toggle");
+  const shouldOpen = typeof forceOpen === "boolean"
+    ? forceOpen
+    : !widget.classList.contains("open");
+
+  widget.classList.toggle("open", shouldOpen);
+  panel.setAttribute("aria-hidden", shouldOpen ? "false" : "true");
+  toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+}
+
+function scrollToLeadForm() {
+
+  const leadForm = document.getElementById("lead-form");
+
+  if (leadForm) {
+    leadForm.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+}
+
+function assistantQuickAction(action) {
+
+  const notes = {
+    "1bhk": "Looking for 1 BHK in Navi Mumbai. Please recommend suitable properties.",
+    "2bhk": "Looking for 2 BHK in Navi Mumbai. Please recommend suitable properties.",
+    siteVisit: "Interested in booking a site visit for Skyline Heights, Navi Mumbai.",
+    sales: "I want to talk to sales about Skyline Heights and available residences."
+  };
+
+  document.getElementById("location").value = "Navi Mumbai";
+  document.getElementById("timeline").value = action === "siteVisit" || action === "sales"
+    ? "Immediate"
+    : "1-3 Months";
+  document.getElementById("budget").value = action === "1bhk"
+    ? "50-80 lakh"
+    : "80 lakh - 1 Cr";
+  document.getElementById("leadText").value = notes[action] || notes["2bhk"];
+
+  document.getElementById("result").innerHTML =
+    "✅ Skyline AI filled your inquiry. Please add your name and phone number.";
+
+  scrollToLeadForm();
+  window.setTimeout(() => {
+    document.getElementById("name").focus();
+  }, 350);
 }
 
 

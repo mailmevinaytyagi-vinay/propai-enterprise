@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express = require("express");
+const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const bodyParser = require("body-parser");
@@ -11,6 +12,8 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 const port = process.env.PORT || 3000;
+const inventoryFallbackPath = path.join(__dirname, "uploaded-inventory.json");
+const brochureFallbackPath = path.join(__dirname, "uploaded-brochures.json");
 
 // =========================
 // TWILIO CONFIG
@@ -259,7 +262,7 @@ const LeadSchema = new mongoose.Schema({
       startedAt: Date,
       completedAt: Date
     }],
-    attempt_history: [{
+    attempt_history: [new mongoose.Schema({
       attempt: Number,
       status: String,
       type: String,
@@ -267,7 +270,7 @@ const LeadSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
       }
-    }]
+    }, { _id: false })]
   },
   callAnalysis: {
     transcript: {
@@ -373,40 +376,43 @@ function normalizeAttemptHistoryEntry(entry, index) {
     new Date();
 
   return {
-    attempt: normalizedEntry.attempt ||
+    attempt: Number(normalizedEntry.attempt ||
       normalizedEntry.retryAttemptNumber ||
-      index + 1,
-    status: normalizedEntry.status ||
-      (typeof entry === "string" ? entry : "unknown"),
-    type: normalizedEntry.type ||
+      index + 1),
+    status: String(normalizedEntry.status ||
+      (typeof entry === "string" ? entry : "unknown")),
+    type: String(normalizedEntry.type ||
       normalizedEntry.retryReason ||
-      "Legacy attempt",
-    timestamp
+      normalizedEntry.reason ||
+      "Legacy attempt"),
+    timestamp: timestamp instanceof Date ? timestamp : new Date(timestamp)
   };
 }
 
 function normalizeLeadAttemptHistory(lead) {
+  if (!lead) {
+    return null;
+  }
+
   if (!lead.outboundCall) lead.outboundCall = {};
 
   if (!Array.isArray(lead.outboundCall.attempt_history)) {
     lead.outboundCall.attempt_history = [];
   }
 
-  lead.outboundCall.attempt_history = lead.outboundCall.attempt_history.map((item, index) => {
-    if (typeof item === "string") {
-      return {
-        attempt: index + 1,
-        status: item,
-        type: "Legacy attempt",
-        timestamp: new Date()
-      };
-    }
-    return item;
-  });
+  lead.outboundCall.attempt_history = lead.outboundCall.attempt_history
+    .filter(Boolean)
+    .map((item, index) => normalizeAttemptHistoryEntry(item, index));
 
   if (!lead.outboundCall.structuredFields) {
     lead.outboundCall.structuredFields = {};
   }
+
+  if (typeof lead.markModified === "function") {
+    lead.markModified("outboundCall");
+  }
+
+  return lead;
 }
 
 const PropertySchema = new mongoose.Schema({
@@ -419,6 +425,10 @@ const PropertySchema = new mongoose.Schema({
   possession: String,
   amenities: [String],
   description: String,
+  source: {
+    type: String,
+    default: "sample"
+  },
   active: {
     type: Boolean,
     default: true
@@ -432,6 +442,49 @@ const PropertySchema = new mongoose.Schema({
 const User = mongoose.model("User", UserSchema);
 const Lead = mongoose.model("Lead", LeadSchema);
 const Property = mongoose.model("Property", PropertySchema);
+
+function isValidObjectId(value) {
+
+  if (value instanceof mongoose.Types.ObjectId) {
+    return true;
+  }
+
+  return typeof value === "string" &&
+    /^[a-fA-F0-9]{24}$/.test(value) &&
+    mongoose.Types.ObjectId.isValid(value);
+}
+
+async function findLeadByIdSafe(id) {
+
+  if (!isValidObjectId(id)) {
+    return null;
+  }
+
+  return Lead.findById(id);
+}
+
+async function findLeadByIdWithMatchesSafe(id) {
+
+  if (!isValidObjectId(id)) {
+    return null;
+  }
+
+  return Lead.findById(id).populate("matchedProperties.property");
+}
+
+function sendInvalidLeadId(res, format = "json") {
+
+  const payload = {
+    success: false,
+    error: "Invalid lead id"
+  };
+
+  if (format === "send") {
+    return res.status(400).send(payload);
+  }
+
+  return res.status(400).json(payload);
+}
 
 const defaultBuilders = {
   builder1: {
@@ -571,8 +624,8 @@ seedProperties();
 // =========================
 // MIDDLEWARE
 // =========================
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json({ limit: "10mb" }));
+app.use(bodyParser.urlencoded({ extended: false, limit: "10mb" }));
 
 app.use(express.static(__dirname));
 
@@ -844,6 +897,7 @@ function scorePropertyMatch(lead, property) {
 
   if (
     normalizedText.includes("station") &&
+    Array.isArray(property.amenities) &&
     property.amenities.includes("Station Access")
   ) {
     score += 8;
@@ -864,12 +918,229 @@ function scorePropertyMatch(lead, property) {
   };
 }
 
-async function findPropertyMatches(lead) {
+function getFallbackInventoryStore() {
 
-  const properties = await Property.find({
-    builder: lead.builder,
+  try {
+    const raw = fs.readFileSync(inventoryFallbackPath, "utf8");
+    return JSON.parse(raw) || {};
+  }
+  catch (err) {
+    return {};
+  }
+}
+
+function saveFallbackInventoryStore(store) {
+
+  fs.writeFileSync(
+    inventoryFallbackPath,
+    JSON.stringify(store, null, 2)
+  );
+}
+
+function getBrochureStore() {
+
+  try {
+    const raw = fs.readFileSync(brochureFallbackPath, "utf8");
+    return JSON.parse(raw) || {};
+  }
+  catch (err) {
+    return {};
+  }
+}
+
+function saveBrochureStore(store) {
+
+  fs.writeFileSync(
+    brochureFallbackPath,
+    JSON.stringify(store, null, 2)
+  );
+}
+
+function normalizeProjectKey(value) {
+
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function findBrochureForProperty(property) {
+
+  const store = getBrochureStore();
+  const brochures = store[property.builder] || [];
+  const projectKey = normalizeProjectKey(property.title);
+
+  return brochures.find((brochure) => (
+    normalizeProjectKey(brochure.projectName) === projectKey
+  ));
+}
+
+function parseCsvRows(csvText) {
+
+  const rows = [];
+  let current = "";
+  let row = [];
+  let inQuotes = false;
+  const text = String(csvText || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === "\"" && inQuotes && next === "\"") {
+      current += "\"";
+      i += 1;
+    }
+    else if (char === "\"") {
+      inQuotes = !inQuotes;
+    }
+    else if (char === "," && !inQuotes) {
+      row.push(current.trim());
+      current = "";
+    }
+    else if (char === "\n" && !inQuotes) {
+      row.push(current.trim());
+      if (row.some(Boolean)) rows.push(row);
+      row = [];
+      current = "";
+    }
+    else {
+      current += char;
+    }
+  }
+
+  row.push(current.trim());
+  if (row.some(Boolean)) rows.push(row);
+
+  return rows;
+}
+
+function parseConfigurationBhk(configuration) {
+
+  const match = String(configuration || "").match(/([1-5])\s*(bhk|b h k|bed|bedroom)/i);
+  return match ? Number(match[1]) : null;
+}
+
+function formatBudgetLabel(price) {
+
+  const amount = Number(price) || 0;
+
+  if (amount >= 10000000) {
+    return `${(amount / 10000000).toFixed(amount % 10000000 === 0 ? 0 : 2)} Cr`;
+  }
+
+  if (amount >= 100000) {
+    return `${Math.round(amount / 100000)} lakh`;
+  }
+
+  return amount ? String(amount) : "Price on request";
+}
+
+function normalizeInventoryItem(item, builder) {
+
+  const title = item.projectName || item.title || "";
+  const price = Number(String(item.price || "").replace(/[^0-9.]/g, ""));
+  const configuration = item.configuration || "";
+  const highlights = String(item.highlights || "")
+    .split(/[|;]/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return {
+    builder,
+    title: String(title).trim(),
+    location: String(item.location || "").trim(),
+    price,
+    budgetLabel: formatBudgetLabel(price),
+    bhk: parseConfigurationBhk(configuration),
+    possession: String(item.possession || "").trim(),
+    amenities: highlights,
+    description: highlights.length
+      ? highlights.join(", ")
+      : `${configuration || "Residential"} project in ${item.location || "preferred location"}`,
+    source: "uploaded",
+    active: true
+  };
+}
+
+function parseInventoryCsv(csvText, builder) {
+
+  const rows = parseCsvRows(csvText);
+
+  if (!rows.length) {
+    return [];
+  }
+
+  const requiredColumns = [
+    "projectName",
+    "location",
+    "configuration",
+    "price",
+    "possession",
+    "highlights"
+  ];
+  const header = rows[0].map((value) => value.trim());
+  const hasHeader = requiredColumns.every((column) => header.includes(column));
+  const dataRows = hasHeader ? rows.slice(1) : rows;
+
+  return dataRows
+    .map((row) => {
+      const values = {};
+      requiredColumns.forEach((column, index) => {
+        const sourceIndex = hasHeader ? header.indexOf(column) : index;
+        values[column] = row[sourceIndex] || "";
+      });
+      return normalizeInventoryItem(values, builder);
+    })
+    .filter((property) => property.title && property.location && property.price);
+}
+
+function serializeInventoryProperty(property) {
+
+  return {
+    id: property._id || property.id || property.title,
+    projectName: property.title,
+    location: property.location,
+    configuration: property.bhk ? `${property.bhk} BHK` : "Not specified",
+    price: property.price,
+    possession: property.possession,
+    highlights: Array.isArray(property.amenities)
+      ? property.amenities.join("; ")
+      : property.description || "",
+    source: property.source || "sample"
+  };
+}
+
+async function getMatchableProperties(builder) {
+
+  const uploaded = await Property.find({
+    builder,
+    active: true,
+    source: "uploaded"
+  });
+
+  if (uploaded.length) {
+    return uploaded;
+  }
+
+  return await Property.find({
+    builder,
     active: true
   });
+}
+
+async function findPropertyMatches(lead) {
+
+  let properties = [];
+
+  try {
+    properties = await getMatchableProperties(lead.builder);
+  }
+  catch (err) {
+    const store = getFallbackInventoryStore();
+    properties = (store[lead.builder] && store[lead.builder].length)
+      ? store[lead.builder]
+      : defaultProperties.filter((property) => property.builder === lead.builder);
+  }
 
   return properties
     .map((property) => {
@@ -889,6 +1160,8 @@ async function findPropertyMatches(lead) {
 
 function serializePropertyMatch(match) {
 
+  const brochure = findBrochureForProperty(match.property);
+
   return {
     id: match.property._id,
     title: match.property.title,
@@ -899,6 +1172,8 @@ function serializePropertyMatch(match) {
     possession: match.property.possession,
     amenities: match.property.amenities,
     description: match.property.description,
+    brochureName: brochure ? brochure.brochureName : "",
+    brochureUrl: brochure ? brochure.brochureUrl : "",
     matchScore: match.matchScore,
     reasons: match.reasons
   };
@@ -2514,6 +2789,21 @@ app.get("/dashboard/:builder", async (req, res) => {
   res.sendFile(path.join(__dirname, "dashboard.html"));
 });
 
+app.get("/admin", async (req, res) => {
+  res.sendFile(path.join(__dirname, "admin.html"));
+});
+
+app.get("/admin/:builder", async (req, res) => {
+
+  const user = await findBuilder(req.params.builder);
+
+  if (!user) {
+    return res.status(404).send("Builder admin panel not found");
+  }
+
+  res.sendFile(path.join(__dirname, "admin.html"));
+});
+
 app.get("/builders/:builder", async (req, res) => {
 
   const user = await findBuilder(req.params.builder);
@@ -2553,6 +2843,10 @@ app.post("/builders/:builder/leads/:leadId/retry-call", async (req, res) => {
     });
   }
 
+  if (!isValidObjectId(req.params.leadId)) {
+    return sendInvalidLeadId(res, "send");
+  }
+
   const lead = await Lead.findOne({
     _id: req.params.leadId,
     builder: user.username
@@ -2590,8 +2884,7 @@ app.post("/builders/:builder/leads/:leadId/retry-call", async (req, res) => {
     retryReason
   });
 
-  const updatedLead = await Lead.findById(lead._id)
-    .populate("matchedProperties.property");
+  const updatedLead = await findLeadByIdWithMatchesSafe(lead._id);
   const analytics = await getAnalyticsForBuilder(user.username);
   const responseLead = updatedLead ? updatedLead.toObject() : lead.toObject();
 
@@ -2630,6 +2923,10 @@ app.post("/builders/:builder/leads/:leadId/send-crm", async (req, res) => {
     });
   }
 
+  if (!isValidObjectId(req.params.leadId)) {
+    return sendInvalidLeadId(res, "send");
+  }
+
   const lead = await Lead.findOne({
     _id: req.params.leadId,
     builder: user.username
@@ -2652,8 +2949,7 @@ app.post("/builders/:builder/leads/:leadId/send-crm", async (req, res) => {
 
   await lead.save();
 
-  const updatedLead = await Lead.findById(lead._id)
-    .populate("matchedProperties.property");
+  const updatedLead = await findLeadByIdWithMatchesSafe(lead._id);
   const responseLead = updatedLead ? updatedLead.toObject() : lead.toObject();
 
   io.to(builderRoom(user.username)).emit("dashboard:update", {
@@ -2676,7 +2972,11 @@ app.post("/api/leads/:id/whatsapp-followup", async (req, res) => {
     const leadId = req.params.id;
     console.log("📲 WhatsApp request:", leadId);
 
-    const lead = await Lead.findById(leadId);
+    if (!isValidObjectId(leadId)) {
+      return sendInvalidLeadId(res);
+    }
+
+    const lead = await findLeadByIdSafe(leadId);
     console.log("📲 Lead found:", lead?._id);
 
     if (!lead) {
@@ -2716,7 +3016,11 @@ app.post("/api/leads/:id/whatsapp-followup", async (req, res) => {
 app.post("/api/leads/:id/analyze-call", async (req, res) => {
 
   try {
-    const lead = await Lead.findById(req.params.id);
+    if (!isValidObjectId(req.params.id)) {
+      return sendInvalidLeadId(res);
+    }
+
+    const lead = await findLeadByIdSafe(req.params.id);
 
     if (!lead) {
       return res.status(404).json({
@@ -2788,8 +3092,7 @@ app.post("/api/leads/:id/analyze-call", async (req, res) => {
       leadScore: lead.callAnalysis.leadScore,
       nextAction: lead.callAnalysis.nextAction
     };
-    const updatedLead = await Lead.findById(lead._id)
-      .populate("matchedProperties.property");
+    const updatedLead = await findLeadByIdWithMatchesSafe(lead._id);
 
     io.to(builderRoom(lead.builder)).emit("dashboard:update", {
       lead: updatedLead ? updatedLead.toObject() : lead.toObject(),
@@ -2830,6 +3133,139 @@ app.get("/builders/:builder/analytics", async (req, res) => {
   res.send(analytics);
 });
 
+app.get("/builders/:builder/inventory", async (req, res) => {
+
+  let user = null;
+
+  try {
+    user = await findBuilder(req.params.builder);
+  }
+  catch (err) {
+    user = defaultBuilders[req.params.builder] || { username: req.params.builder };
+  }
+
+  if (!user) {
+    return res.status(404).send([]);
+  }
+
+  try {
+    const uploaded = await Property.find({
+      builder: user.username,
+      active: true,
+      source: "uploaded"
+    }).sort({ createdAt: -1 });
+
+    return res.send(uploaded.map(serializeInventoryProperty));
+  }
+  catch (err) {
+    const store = getFallbackInventoryStore();
+    return res.send((store[user.username] || []).map(serializeInventoryProperty));
+  }
+});
+
+app.post("/builders/:builder/inventory/upload", async (req, res) => {
+
+  let user = null;
+
+  try {
+    user = await findBuilder(req.params.builder);
+  }
+  catch (err) {
+    user = defaultBuilders[req.params.builder] || { username: req.params.builder };
+  }
+
+  if (!user) {
+    return res.status(404).send({
+      success: false,
+      message: "Builder not found"
+    });
+  }
+
+  const properties = parseInventoryCsv(req.body.csv || "", user.username);
+
+  if (!properties.length) {
+    return res.status(400).send({
+      success: false,
+      message: "No valid inventory rows found. Required columns: projectName, location, configuration, price, possession, highlights"
+    });
+  }
+
+  try {
+    await Property.deleteMany({
+      builder: user.username,
+      source: "uploaded"
+    });
+
+    const inserted = await Property.insertMany(properties);
+
+    return res.send({
+      success: true,
+      count: inserted.length,
+      inventory: inserted.map(serializeInventoryProperty),
+      storage: "database"
+    });
+  }
+  catch (err) {
+    const store = getFallbackInventoryStore();
+    store[user.username] = properties.map((property, index) => ({
+      ...property,
+      id: `${user.username}-upload-${index + 1}`,
+      createdAt: new Date().toISOString()
+    }));
+    saveFallbackInventoryStore(store);
+
+    return res.send({
+      success: true,
+      count: store[user.username].length,
+      inventory: store[user.username].map(serializeInventoryProperty),
+      storage: "local-json"
+    });
+  }
+});
+
+app.get("/builders/:builder/brochures", async (req, res) => {
+
+  const store = getBrochureStore();
+  res.send(store[req.params.builder] || []);
+});
+
+app.post("/builders/:builder/brochures", async (req, res) => {
+
+  const brochureName = String(req.body.brochureName || "").trim();
+  const projectName = String(req.body.projectName || "").trim();
+  const brochureUrl = String(req.body.brochureUrl || "").trim();
+
+  if (!brochureName || !projectName || !brochureUrl) {
+    return res.status(400).send({
+      success: false,
+      message: "Brochure name, project name, and brochure link/path are required"
+    });
+  }
+
+  const store = getBrochureStore();
+  const builderBrochures = store[req.params.builder] || [];
+  const brochure = {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    brochureName,
+    projectName,
+    brochureUrl,
+    uploadedAt: new Date().toISOString()
+  };
+
+  store[req.params.builder] = [
+    brochure,
+    ...builderBrochures.filter((item) => (
+      normalizeProjectKey(item.projectName) !== normalizeProjectKey(projectName)
+    ))
+  ];
+  saveBrochureStore(store);
+
+  res.send({
+    success: true,
+    brochure
+  });
+});
+
 app.get("/builders/:builder/properties", async (req, res) => {
 
   const user = await findBuilder(req.params.builder);
@@ -2838,12 +3274,17 @@ app.get("/builders/:builder/properties", async (req, res) => {
     return res.status(404).send([]);
   }
 
-  const properties = await Property.find({
-    builder: user.username,
-    active: true
-  }).sort({ price: 1 });
-
-  res.send(properties);
+  try {
+    const properties = await getMatchableProperties(user.username);
+    return res.send(properties.sort((a, b) => (a.price || 0) - (b.price || 0)));
+  }
+  catch (err) {
+    const store = getFallbackInventoryStore();
+    const fallbackProperties = (store[user.username] && store[user.username].length)
+      ? store[user.username]
+      : defaultProperties.filter((property) => property.builder === user.username);
+    return res.send(fallbackProperties.sort((a, b) => (a.price || 0) - (b.price || 0)));
+  }
 });
 
 app.post("/match-properties", async (req, res) => {
@@ -2870,7 +3311,7 @@ app.post("/match-properties", async (req, res) => {
 // =========================
 app.post("/voice/hot-lead/:leadId", async (req, res) => {
 
-  const lead = await Lead.findById(req.params.leadId);
+  const lead = await findLeadByIdSafe(req.params.leadId);
 
   if (!lead) {
     const twiml = new twilio.twiml.VoiceResponse();
@@ -2902,7 +3343,7 @@ app.post("/voice/hot-lead/:leadId/repeat", async (req, res) => {
 
   const step = Number(req.query.step || 0);
   const retryCount = Number(req.query.retry || 0);
-  const lead = await Lead.findById(req.params.leadId);
+  const lead = await findLeadByIdSafe(req.params.leadId);
   const twiml = new twilio.twiml.VoiceResponse();
 
   if (!lead || !qualificationQuestions[step]) {
@@ -2968,8 +3409,7 @@ app.post("/voice/hot-lead/:leadId/repeat", async (req, res) => {
       lead.markModified("callAnalysis");
       normalizeLeadAttemptHistory(lead);
       await lead.save();
-      const updatedLead = await Lead.findById(lead._id)
-        .populate("matchedProperties.property");
+      const updatedLead = await findLeadByIdWithMatchesSafe(lead._id);
       io.to(builderRoom(lead.builder)).emit("dashboard:update", {
         lead: updatedLead ? updatedLead.toObject() : lead.toObject(),
         analytics: await getAnalyticsForBuilder(lead.builder),
@@ -2998,7 +3438,7 @@ app.post("/voice/hot-lead/:leadId/answer", async (req, res) => {
 
   const step = Number(req.query.step || 0);
   const retryCount = Number(req.query.retry || 0);
-  const lead = await Lead.findById(req.params.leadId);
+  const lead = await findLeadByIdSafe(req.params.leadId);
   const twiml = new twilio.twiml.VoiceResponse();
 
   if (!lead || !qualificationQuestions[step]) {
@@ -3092,8 +3532,7 @@ app.post("/voice/hot-lead/:leadId/answer", async (req, res) => {
     lead.markModified("callAnalysis");
     normalizeLeadAttemptHistory(lead);
     await lead.save();
-    const updatedLead = await Lead.findById(lead._id)
-      .populate("matchedProperties.property");
+    const updatedLead = await findLeadByIdWithMatchesSafe(lead._id);
     io.to(builderRoom(lead.builder)).emit("dashboard:update", {
       lead: updatedLead ? updatedLead.toObject() : lead.toObject(),
       analytics: await getAnalyticsForBuilder(lead.builder),
@@ -3109,7 +3548,7 @@ app.post("/voice/hot-lead/:leadId/answer", async (req, res) => {
 
 app.post("/voice/hot-lead/:leadId/status", async (req, res) => {
 
-  const lead = await Lead.findById(req.params.leadId);
+  const lead = await findLeadByIdSafe(req.params.leadId);
 
   if (lead) {
     const callbackCallSid = req.body.CallSid;
@@ -3157,8 +3596,7 @@ app.post("/voice/hot-lead/:leadId/status", async (req, res) => {
       await sendWhatsAppFollowup(lead, req.body.CallStatus);
     }
 
-    const updatedLead = await Lead.findById(lead._id)
-      .populate("matchedProperties.property");
+    const updatedLead = await findLeadByIdWithMatchesSafe(lead._id);
     io.to(builderRoom(lead.builder)).emit("dashboard:update", {
       lead: updatedLead ? updatedLead.toObject() : lead.toObject(),
       analytics: await getAnalyticsForBuilder(lead.builder),
